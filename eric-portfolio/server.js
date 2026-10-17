@@ -21,6 +21,10 @@ function loadSecret() {
   return s;
 }
 let ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH;
+if (!ADMIN_HASH && !PROD && process.env.ADMIN_PASSWORD) {
+  ADMIN_HASH = hashPassword(process.env.ADMIN_PASSWORD); // development convenience only
+  console.log('[dev] Using ADMIN_PASSWORD from your environment.');
+}
 if (!ADMIN_HASH) {
   if (PROD) {
     console.error('FATAL: ADMIN_PASSWORD_HASH is not set. Run "npm run set-password" and add the result to your environment.');
@@ -57,13 +61,24 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '100kb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 
+// Hosts our own pages may be served from (your domain, and the Codespaces preview address when developing).
+const allowedHosts = new Set();
+try { if (process.env.SITE_URL) allowedHosts.add(new URL(process.env.SITE_URL).host); } catch {}
+if (process.env.CODESPACE_NAME && process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN)
+  allowedHosts.add(`${process.env.CODESPACE_NAME}-${PORT}.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}`);
+
 // Block cross-site form/API abuse: any state-changing request must come from our own origin.
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const origin = req.get('origin');
   if (origin) {
-    try { if (new URL(origin).host !== req.get('host')) return res.status(403).json({ error: 'Cross-origin request blocked.' }); }
-    catch { return res.status(403).json({ error: 'Bad origin.' }); }
+    try {
+      const host = new URL(origin).host;
+      const ok = host === req.get('host')
+        || (process.env.TRUST_PROXY && host === req.get('x-forwarded-host'))
+        || allowedHosts.has(host);
+      if (!ok) return res.status(403).json({ error: 'Cross-origin request blocked.' });
+    } catch { return res.status(403).json({ error: 'Bad origin.' }); }
   }
   if (Number(req.get('content-length')) > 0 && !req.is('application/json')) return res.status(415).json({ error: 'JSON required.' });
   next();
