@@ -1,141 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Owner Dashboard</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 25px; }
-        label { font-weight: bold; display: block; margin-bottom: 8px; }
-        input, textarea { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { background: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        button:hover { background: #2980b9; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #34495e; color: white; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-    </style>
-</head>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>Owner Dashboard</title><link rel="stylesheet" href="/css/style.css"></head>
 <body>
-    <div class="container">
-        <h1>Owner Control Center</h1>
-        
-        <!-- Section to Upload New Content -->
-        <div class="card">
-            <h2>Post a New Course or Announcement</h2>
-            <form id="postForm">
-                <label for="postTitle">Topic / Course Title</label>
-                <input type="text" id="postTitle" placeholder="e.g., Introduction to Microbiology Week 1" required>
-                
-                <label for="postContent">Course Details / Content</label>
-                <textarea id="postContent" rows="6" placeholder="Write the lessons, guides, or updates here..." required></textarea>
-                
-                <button type="submit">Publish to Website</button>
-            </form>
-        </div>
-
-        <div class="grid">
-            <!-- Section to See Bookings -->
-            <div class="card">
-                <h2>Registered Students & Appointments</h2>
-                <table id="appointmentsTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="3">No registrations yet.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Section to See Subscribers -->
-            <div class="card">
-                <h2>Newsletter Subscribers</h2>
-                <table id="subscribersTable">
-                    <thead>
-                        <tr>
-                            <th>Email</th>
-                            <th>Joined On</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="2">No subscribers yet.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Load existing database registrations
-        async function loadAdminData() {
-            try {
-                const res = await fetch('/api/admin/data');
-                const data = await res.json();
-                
-                // Populate Appointments Table
-                const apptTableBody = document.querySelector('#appointmentsTable tbody');
-                if(data.appointments.length > 0) {
-                    apptTableBody.innerHTML = data.appointments.map(a => `
-                        <tr>
-                            <td><strong>${a.name}</strong></td>
-                            <td>${a.email}</td>
-                            <td>${a.details}</td>
-                        </tr>
-                    `).join('');
-                }
-
-                // Populate Subscribers Table
-                const subTableBody = document.querySelector('#subscribersTable tbody');
-                if(data.subscribers.length > 0) {
-                    subTableBody.innerHTML = data.subscribers.map(s => `
-                        <tr>
-                            <td>${s.email}</td>
-                            <td>${s.date}</td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (err) {
-                console.error("Error loading dashboard data:", err);
-            }
-        }
-
-        // Handle Publishing New Posts
-        document.getElementById('postForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const title = document.getElementById('postTitle').value;
-            const content = document.getElementById('postContent').value;
-
-            try {
-                const res = await fetch('/api/admin/posts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, content })
-                });
-                const result = await res.json();
-                if(result.success) {
-                    alert("Course/Post published successfully!");
-                    document.getElementById('postForm').reset();
-                } else {
-                    alert("Error publishing post: " + result.error);
-                }
-            } catch (err) {
-                alert("Failed to connect to server.");
-            }
-        });
-
-        // Load data on page load
-        loadAdminData();
-        // Auto-refresh data every 10 seconds to catch new signups
-        setInterval(loadAdminData, 10000);
-    </script>
-</body>
-</html>
+<div id="loginView" class="hidden"><div class="card login-card"><h2 class="title">Owner login</h2><p class="mb16 muted">Private area.</p>
+  <div id="loginMsg" class="notice hidden" role="alert"></div>
+  <form id="loginForm" class="stack"><div><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+  <button class="btn" type="submit">Log in</button></form></div></div>
+<div id="dashView" class="admin-wrap hidden">
+  <div class="admin-bar"><h1 class="navy">Owner Control Center</h1><div class="row-actions"><a class="btn sm" href="/" >View site</a><button id="logoutBtn" class="btn sm danger">Log out</button></div></div>
+  <div id="dashMsg" class="notice hidden" role="status"></div>
+  <div class="stat-row"><div class="card stat"><b id="sRev">&#8358;0</b>Lesson sales</div><div class="card stat"><b id="sBook">0</b>Bookings</div><div class="card stat"><b id="sNew">0</b>New</div><div class="card stat"><b id="sSub">0</b>Subscribers</div><div class="card stat"><b id="sPost">0</b>Posts</div></div>
+  <div class="mb22 card"><h3>Publish a lesson or announcement</h3>
+    <form id="postForm" class="mt12 stack"><div><label for="pTitle">Title</label><input id="pTitle" maxlength="150" required></div>
+    <div><label for="pContent">Public content (free preview)</label><textarea id="pContent" rows="4" maxlength="8000" required></textarea></div>
+    <div><label for="pPrice">Price in &#8358; (0 = free lesson)</label><input id="pPrice" type="number" min="0" max="10000000" value="0"></div>
+    <div><label for="pPremium">Paid content (only buyers see this; needed if price is above 0)</label><textarea id="pPremium" rows="6" maxlength="40000"></textarea></div>
+    <div><button class="btn" type="submit">Publish</button></div></form></div>
+  <div class="mb22 card"><h3>Bookings</h3><div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>Service</th><th>Details</th><th>Status</th><th></th></tr></thead><tbody id="bookBody"></tbody></table></div></div>
+  <div class="mb22 card"><h3>Posts</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Title</th><th></th></tr></thead><tbody id="postBody"></tbody></table></div></div>
+  <div class="card mb22"><h3>Services &amp; prices</h3>
+    <form id="svcForm" class="stack mt12"><div><label for="sName">Name</label><input id="sName" maxlength="80" required></div><div><label for="sDesc">Description</label><input id="sDesc" maxlength="400"></div>
+    <div><label for="sPrice">Starting price in &#8358; (0 = "Get a quote")</label><input id="sPrice" type="number" min="0" value="0"></div><div><label for="sUnit">Per (e.g. per project)</label><input id="sUnit" maxlength="40"></div>
+    <div><button class="btn" type="submit">Add service</button></div></form>
+    <div class="table-wrap mt14"><table><thead><tr><th>Service</th><th>Price (&#8358;)</th><th></th></tr></thead><tbody id="svcBody"></tbody></table></div></div>
+  <div class="card mb22"><h3>Portfolio projects</h3>
+    <form id="porForm" class="stack mt12"><div><label for="oTitle">Project title</label><input id="oTitle" maxlength="120" required></div><div><label for="oCat">Category (e.g. Web Design)</label><input id="oCat" maxlength="40"></div>
+    <div><label for="oDesc">What you did and the result</label><textarea id="oDesc" rows="3" maxlength="600"></textarea></div><div><label for="oLink">Link to the live project (optional)</label><input id="oLink" type="url" maxlength="500" placeholder="https://"></div>
+    <div><button class="btn" type="submit">Add project</button></div></form>
+    <div class="table-wrap mt14"><table><thead><tr><th>Project</th><th>Category</th><th></th></tr></thead><tbody id="porBody"></tbody></table></div></div>
+  <div class="card mb22"><h3>Lesson sales</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Lesson</th><th>Buyer</th><th>Amount</th><th>Status</th></tr></thead><tbody id="ordBody"></tbody></table></div></div>
+  <div class="card"><div class="mb0 admin-bar"><h3>Subscribers</h3><a class="btn sm" href="/api/admin/subscribers.csv">Download CSV</a></div><div class="table-wrap"><table><thead><tr><th>Email</th><th>Joined</th><th></th></tr></thead><tbody id="subBody"></tbody></table></div></div>
+</div>
+<script src="/js/common.js"></script><script src="/js/admin.js"></script>
+</body></html>

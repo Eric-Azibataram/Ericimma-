@@ -1,0 +1,8 @@
+{
+  "name": "Eric Portfolio",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "cd eric-portfolio && npm install",
+  "forwardPorts": [3000],
+  "portsAttributes": { "3000": { "label": "Portfolio site", "onAutoForward": "openBrowser" } },
+  "customizations": { "vscode": { "extensions": ["dbaeumer.vscode-eslint"] } }
+}

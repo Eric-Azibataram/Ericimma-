@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book a Session | Eric Azibataram</title>
+<meta name="description" content="Book a web design, graphic design, video editing or mentoring session with Eric.">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="site-header"><div class="container">
+  <a class="logo" href="/"><b>E</b> Eric Azibataram</a>
+  <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false">&#9776;</button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+    <li><a href="/services">Services</a></li>
+    <li><a href="/portfolio">Portfolio</a></li>
+    <li><a href="/lessons">Lessons</a></li>
+    <li><a href="/booking" aria-current="page">Book a Session</a></li>
+  </ul>
+</div></header>
+<main>
+<section class="hero small"><div class="container"><h1>Book a Session</h1><p>Tell me what you need and I'll reply by email.</p></div></section>
+<section class="block"><div class="container two-col">
+  <div class="card">
+    <div id="bookMsg" class="notice hidden" role="status"></div>
+    <form id="bookingForm" class="stack" novalidate>
+      <div><label for="name">Full name</label><input id="name" name="name" required minlength="2" maxlength="100" autocomplete="name"></div>
+      <div><label for="email">Email address</label><input id="email" name="email" type="email" required maxlength="254" autocomplete="email"></div>
+      <div><label for="service">Service</label>
+        <select id="service" name="service" required>
+          <option>Web Design</option><option>Graphic Design</option><option>Video Editing / Animation</option><option>Tech Lessons / Mentoring</option><option>Something else</option>
+        </select></div>
+      <div><label for="preferredDate">Preferred date (optional)</label><input id="preferredDate" name="preferredDate" type="date"></div>
+      <div><label for="details">Project details or learning goals</label><textarea id="details" name="details" rows="5" required minlength="10" maxlength="2000"></textarea></div>
+      <div class="hp" aria-hidden="true"><label>Leave empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+      <button class="btn" type="submit">Send Booking Request</button>
+    </form>
+  </div>
+  <div class="card"><h3>What happens next?</h3>
+    <ul class="mt14 timeline">
+      <li><strong>1. You send the form</strong></li><li><strong>2. I reply by email</strong><br><span class="muted">to confirm details and timing</span></li><li><strong>3. We get to work</strong></li>
+    </ul></div>
+</div></section>
+</main>
+<footer class="site-footer"><div class="container">
+  <div class="footer-grid">
+    <div><h4>Eric Azibataram</h4><p>Web designer, graphic designer and video editor. I build things for the web and teach what I learn.</p></div>
+    <div><h4>Get notified of new lessons</h4>
+      <form id="subscribeForm" novalidate>
+        <div class="sub-row"><input type="email" name="email" placeholder="Your email" aria-label="Email" required maxlength="254">
+        <button class="btn" type="submit">Subscribe</button></div>
+        <div class="hp" aria-hidden="true"><input type="text" name="website" tabindex="-1" autocomplete="off"></div>
+      </form>
+      <div id="subMsg" class="mt10 notice hidden" role="status"></div>
+    </div>
+  </div>
+  <div class="copy">&copy; 2026 Eric Azibataram. All rights reserved.</div>
+</div></footer>
+<script src="/js/common.js"></script>
+<script src="/js/booking.js"></script>
+</body></html>
