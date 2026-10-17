@@ -9,10 +9,64 @@
     });
   }
   function showLogin() { clearInterval(timer); dashView.classList.add('hidden'); loginView.classList.remove('hidden'); }
-  function showDash() { loginView.classList.add('hidden'); dashView.classList.remove('hidden'); load(); clearInterval(timer); timer = setInterval(load, 20000); }
+  function showDash() { loginView.classList.add('hidden'); dashView.classList.remove('hidden'); buildSlots(); load(); clearInterval(timer); timer = setInterval(load, 20000); }
   function cell(text, cls) { return h('td', { class: cls || '', text: text }); }
   function btn(label, cls, fn) { var b = h('button', { class: 'btn sm ' + (cls || ''), type: 'button', text: label }); b.addEventListener('click', fn); return b; }
   function fail(e) { notice(dashMsg, 'err', e.message); }
+
+
+  var SLOTS = [
+    { id: 'profile', label: 'Profile / bio photo', help: 'Shows at the top of the Home page and on your About page.' },
+    { id: 'home-banner', label: 'Home page banner', help: 'A wide picture under the Home page headline (for example you at work).' },
+    { id: 'about-extra', label: 'Second About photo', help: 'A second picture on the About page, under your profile photo.' }
+  ];
+  // Shrink phone photos before upload so pages load fast and data is saved.
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1600, r = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('Could not read that picture.')); }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not read that picture.')); };
+      img.src = url;
+    });
+  }
+  function uploadBlob(blob) {
+    return fetch('/api/admin/upload', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'image/jpeg', 'X-CSRF-Token': csrf }, body: blob })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Upload failed.'); return d; }); });
+  }
+  function buildSlots() {
+    var wrap = $('#picSlots'); wrap.textContent = '';
+    api('/api/images').then(function (imgs) {
+      SLOTS.forEach(function (sl) {
+        var cur = imgs[sl.id], file = h('input', { type: 'file', accept: 'image/*' }), link = h('input', { type: 'url', placeholder: 'https://... (optional link instead)', maxlength: '600' });
+        var alt = h('input', { maxlength: '150', placeholder: 'Short description of the picture', value: cur && cur.alt ? cur.alt : '' });
+        var save = h('button', { class: 'btn sm', type: 'button', text: 'Save picture' });
+        var rm = h('button', { class: 'btn sm danger', type: 'button', text: 'Remove' });
+        save.addEventListener('click', async function () {
+          save.disabled = true;
+          try {
+            var src = link.value.trim();
+            if (file.files[0]) src = (await uploadBlob(await shrink(file.files[0]))).src;
+            if (!src) throw new Error('Choose a picture or paste a link first.');
+            await call('/api/admin/images/' + sl.id, 'PUT', { src: src, alt: alt.value });
+            notice(dashMsg, 'ok', 'Picture saved. Refresh your site to see it.'); buildSlots();
+          } catch (e) { fail(e); }
+          save.disabled = false;
+        });
+        rm.addEventListener('click', function () { call('/api/admin/images/' + sl.id, 'DELETE').then(buildSlots).catch(fail); });
+        var kids = [h('strong', { text: sl.label }), h('p', { class: 'muted', text: sl.help })];
+        if (cur && cur.src) kids.push(h('img', { src: cur.src, alt: '' }));
+        kids.push(h('div', { class: 'stack' }, [h('div', {}, [h('label', { text: 'Upload from phone or computer' }), file]), h('div', {}, [h('label', { text: 'Or picture link' }), link]),
+          h('div', {}, [h('label', { text: 'Description' }), alt]), h('div', { class: 'row-actions' }, cur && cur.src ? [save, rm] : [save])]));
+        wrap.appendChild(h('div', { class: 'pic-row' }, kids));
+      });
+    }).catch(function () {});
+  }
 
   async function load() {
     try {

@@ -10,6 +10,8 @@ const PROD = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 const { db, save } = createStore(DATA_DIR);
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 /* ---------- Secrets ---------- */
 function loadSecret() {
@@ -43,7 +45,7 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PRO
 
 app.use((req, res, next) => {
   res.set({
-    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -80,7 +82,7 @@ app.use('/api', (req, res, next) => {
       if (!ok) return res.status(403).json({ error: 'Cross-origin request blocked.' });
     } catch { return res.status(403).json({ error: 'Bad origin.' }); }
   }
-  if (Number(req.get('content-length')) > 0 && !req.is('application/json')) return res.status(415).json({ error: 'JSON required.' });
+  if (req.path !== '/admin/upload' && Number(req.get('content-length')) > 0 && !req.is('application/json')) return res.status(415).json({ error: 'JSON required.' });
   next();
 });
 
@@ -137,6 +139,7 @@ const WHATSAPP = String(process.env.WHATSAPP_NUMBER || '').replace(/\D/g, '');
 const PAYSTACK_KEY = process.env.PAYSTACK_SECRET_KEY || '';
 const PAYSTACK_API = process.env.PAYSTACK_API || 'https://api.paystack.co';
 app.get('/api/config', (req, res) => res.json({ whatsapp: WHATSAPP, paymentsEnabled: !!PAYSTACK_KEY }));
+app.get('/api/images', (req, res) => res.json(db.images));
 app.get('/api/services', (req, res) => res.json(db.services));
 app.get('/api/portfolio', (req, res) => res.json(db.portfolio));
 
@@ -251,6 +254,7 @@ function requireAdmin(req, res, next) {
 
 app.post('/api/admin/logout', requireAdmin, (req, res) => { sessions.destroy(req, res); res.json({ success: true }); });
 
+const httpUrl = (v) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
 /* ---------- Admin API (all behind login + CSRF) ---------- */
 app.get('/api/admin/data', requireAdmin, (req, res) => {
   res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders });
@@ -298,7 +302,6 @@ app.delete('/api/admin/subscribers/:id', requireAdmin, (req, res) => {
 });
 
 
-const httpUrl = (v) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
 app.post('/api/admin/services', requireAdmin, (req, res) => {
   const name = clean(req.body?.name, 80), description = clean(req.body?.description, 400), unit = clean(req.body?.unit, 40);
   const price = Math.round(Number(req.body?.price) || 0);
@@ -333,6 +336,51 @@ app.delete('/api/admin/portfolio/:id', requireAdmin, (req, res) => {
   save(); res.json({ success: true });
 });
 
+
+/* ---------- Pictures (upload or link) ---------- */
+const SLOTS = ['profile', 'home-banner', 'about-extra'];
+const LOCAL_SRC = /^\/uploads\/[a-f0-9]{24}\.(jpg|png|webp|gif)$/;
+function sniffImage(b) {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+  if (b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (b.subarray(0, 4).toString('latin1') === 'GIF8') return 'gif';
+  if (b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  return null;
+}
+const rawImage = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], limit: '6mb' });
+app.put('/api/admin/upload', requireAdmin, rawImage, (req, res) => {
+  const buf = req.body;
+  const ext = Buffer.isBuffer(buf) ? sniffImage(buf) : null;
+  if (!ext) return res.status(400).json({ error: 'Please choose a JPG, PNG, WebP or GIF picture.' });
+  if (fs.readdirSync(UPLOAD_DIR).length >= 60) return res.status(400).json({ error: 'Too many uploaded pictures. Remove some first.' });
+  const name = crypto.randomBytes(12).toString('hex') + '.' + ext;
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf, { mode: 0o644 });
+  res.status(201).json({ src: '/uploads/' + name });
+});
+const dropIfUnused = (src) => {
+  if (!LOCAL_SRC.test(src || '') || Object.values(db.images).some((i) => i.src === src)) return;
+  fs.rm(path.join(UPLOAD_DIR, path.basename(src)), { force: true }, () => {});
+};
+app.put('/api/admin/images/:slot', requireAdmin, (req, res) => {
+  const slot = req.params.slot;
+  if (!SLOTS.includes(slot)) return res.status(404).json({ error: 'Unknown picture spot.' });
+  const src = clean(req.body?.src, 600), alt = clean(req.body?.alt, 150);
+  const okLocal = LOCAL_SRC.test(src) && fs.existsSync(path.join(UPLOAD_DIR, path.basename(src)));
+  const okLink = !okLocal && /^https:\/\//i.test(src) && httpUrl(src);
+  if (!okLocal && !okLink) return res.status(400).json({ error: 'Use an uploaded picture or a link starting with https://' });
+  const old = db.images[slot]?.src;
+  db.images[slot] = { src: okLocal ? src : httpUrl(src), alt };
+  save(); dropIfUnused(old);
+  res.json({ success: true });
+});
+app.delete('/api/admin/images/:slot', requireAdmin, (req, res) => {
+  if (!SLOTS.includes(req.params.slot)) return res.status(404).json({ error: 'Unknown picture spot.' });
+  const old = db.images[req.params.slot]?.src;
+  delete db.images[req.params.slot]; save(); dropIfUnused(old);
+  res.json({ success: true });
+});
+
 app.get('/api/admin/subscribers.csv', requireAdmin, (req, res) => {
   const rows = ['email,joined', ...db.subscribers.map((s) => `${csvSafe(s.email)},${csvSafe(s.createdAt)}`)];
   res.type('text/csv').attachment('subscribers.csv').send(rows.join('\n'));
@@ -341,12 +389,14 @@ app.get('/api/admin/subscribers.csv', requireAdmin, (req, res) => {
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 /* ---------- Pages ---------- */
+app.use('/uploads', express.static(UPLOAD_DIR, { dotfiles: 'ignore', index: false, maxAge: PROD ? '7d' : 0 }));
 // "/about" -> about.html, "/booking" -> booking.html, etc. Dotfiles are never served.
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'], dotfiles: 'ignore', maxAge: PROD ? '1h' : 0, index: 'index.html' }));
 app.use((req, res) => res.status(404).sendFile(path.join(__dirname, 'public', '404.html')));
 
 app.use((err, req, res, next) => {
-  if (err.type === 'entity.parse.failed' || err.type === 'entity.too.large') return res.status(400).json({ error: 'Bad request.' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'That file is too large.' });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Bad request.' });
   console.error(err);
   res.status(500).json({ error: 'Something went wrong.' });
 });

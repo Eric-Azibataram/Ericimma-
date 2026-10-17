@@ -19,7 +19,7 @@ function createStore(dir) {
       { id: 'svc-video', name: 'Video Editing / Animation', description: 'Polished edits, motion graphics and animation for YouTube, ads and events.', price: 0, unit: 'per video' },
       { id: 'svc-mentor', name: 'Tech Lessons / Mentoring', description: 'One-on-one guidance to learn design, editing or web skills faster.', price: 0, unit: 'per session' }
     ],
-    portfolio: []
+    portfolio: [], images: {}
   });
   let db;
   let writing = false, queued = false;

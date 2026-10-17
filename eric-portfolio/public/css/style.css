@@ -89,3 +89,15 @@ td.wrap{max-width:320px;white-space:pre-wrap;word-wrap:break-word}
 .price{font-size:1.25rem;font-weight:700;color:var(--blue);margin-bottom:8px}
 .wa{position:fixed;right:18px;bottom:18px;background:#25d366;color:#fff;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:60}
 .wa:hover{background:#1ebe5b}
+
+.hero-pic{width:132px;height:132px;border-radius:50%;margin:0 auto 18px;overflow:hidden;border:4px solid rgba(255,255,255,.7)}
+.hero-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.banner{margin-top:-34px;position:relative;z-index:2;border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 24px rgba(13,44,84,.18)}
+.banner img{width:100%;max-height:380px;object-fit:cover;display:block}
+.avatar{overflow:hidden}
+.avatar img,.side-pic img{width:100%;display:block;object-fit:cover}
+.avatar img{height:100%}
+.side-pic{border-radius:var(--radius);overflow:hidden;box-shadow:0 2px 10px rgba(13,44,84,.1)}
+.pic-row{border-top:1px solid var(--line);padding:16px 0}
+.pic-row img{max-width:160px;max-height:110px;border-radius:8px;display:block;margin:8px 0}
+.pic-row .stack{margin-top:10px}

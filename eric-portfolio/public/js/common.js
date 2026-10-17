@@ -45,6 +45,19 @@
     });
   };
 
+  // Pictures chosen in the admin (profile photo, home banner, extra about photo)
+  if (location.pathname.indexOf('/admin') !== 0 && document.querySelector('[data-slot]')) {
+    api('/api/images').then(function (imgs) {
+      document.querySelectorAll('[data-slot]').forEach(function (box) {
+        var im = imgs[box.getAttribute('data-slot')];
+        if (!im || !im.src) return;
+        box.textContent = '';
+        box.appendChild(h('img', { src: im.src, alt: im.alt || '', loading: 'lazy', referrerpolicy: 'no-referrer' }));
+        box.classList.remove('hidden');
+      });
+    }).catch(function () {});
+  }
+
   // Floating WhatsApp button (shown only if WHATSAPP_NUMBER is configured on the server)
   if (location.pathname.indexOf('/admin') !== 0) {
     api('/api/config').then(function (c) {
