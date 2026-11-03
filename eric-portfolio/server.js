@@ -391,7 +391,11 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 /* ---------- Pages ---------- */
 app.use('/uploads', express.static(UPLOAD_DIR, { dotfiles: 'ignore', index: false, maxAge: PROD ? '7d' : 0 }));
 // "/about" -> about.html, "/booking" -> booking.html, etc. Dotfiles are never served.
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'], dotfiles: 'ignore', maxAge: PROD ? '1h' : 0, index: 'index.html' }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  extensions: ['html'], dotfiles: 'ignore', index: 'index.html',
+  // Pages, scripts and styles are re-checked on every visit, so updates show up immediately (no stale admin).
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
+}));
 app.use((req, res) => res.status(404).sendFile(path.join(__dirname, 'public', '404.html')));
 
 app.use((err, req, res, next) => {

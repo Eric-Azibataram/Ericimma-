@@ -22,17 +22,28 @@
   ];
   // Shrink phone photos before upload so pages load fast and data is saved.
   function shrink(file) {
+    function draw(src, w, h0) {
+      var max = 1600, r = Math.min(1, max / Math.max(w, h0));
+      var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(h0 * r);
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      return new Promise(function (resolve, reject) {
+        c.toBlob(function (bl) { bl ? resolve(bl) : reject(new Error('Could not read that picture.')); }, 'image/jpeg', 0.85);
+      });
+    }
+    if (window.createImageBitmap) {
+      return createImageBitmap(file).then(function (bmp) { return draw(bmp, bmp.width, bmp.height); })
+        .catch(function () { throw new Error('Could not read that picture. Try a JPG or PNG.'); });
+    }
     return new Promise(function (resolve, reject) {
-      var url = URL.createObjectURL(file), img = new Image();
-      img.onload = function () {
-        var max = 1600, r = Math.min(1, max / Math.max(img.width, img.height));
-        var c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('Could not read that picture.')); }, 'image/jpeg', 0.85);
+      var fr = new FileReader();
+      fr.onload = function () {
+        var img = new Image();
+        img.onload = function () { draw(img, img.width, img.height).then(resolve, reject); };
+        img.onerror = function () { reject(new Error('Could not read that picture.')); };
+        img.src = fr.result;
       };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not read that picture.')); };
-      img.src = url;
+      fr.onerror = function () { reject(new Error('Could not read that picture.')); };
+      fr.readAsDataURL(file);
     });
   }
   function uploadBlob(blob) {
