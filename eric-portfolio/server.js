@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const { hashPassword, verifyPassword, rateLimit, createSessions, EMAIL_RE, clean, csvSafe } = require('./lib/security');
 const { createStore } = require('./lib/store');
+const { createMailer } = require('./lib/mailer');
+const mailer = createMailer();
 
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
@@ -102,6 +104,26 @@ app.get('/api/posts', (req, res) => {
   res.json(posts);
 });
 
+function notifyBooking(b) {
+  if (!mailer.enabled) return;
+  mailer.send({
+    to: mailer.owner, replyTo: b.email, subject: `New booking: ${b.service} from ${b.name}`,
+    text: `You have a new booking request.\n\nName: ${b.name}\nEmail: ${b.email}\nPhone/WhatsApp: ${b.phone || '(not given)'}\nService: ${b.service}\nPreferred date: ${b.preferredDate || '(not given)'}\n\nDetails:\n${b.details}\n\nReply to this email to answer the customer, or open your admin dashboard.`
+  });
+  mailer.send({
+    to: b.email, replyTo: mailer.owner, subject: 'We received your booking request',
+    text: `Hi ${b.name},\n\nThanks for your booking request for ${b.service}. I have received it and will reply to this email soon.\n\nWhat you sent me:\n${b.details}\n\nEric Azibataram`
+  });
+}
+function notifyOrder(o) {
+  if (!mailer.enabled) return;
+  const link = `${o.base || (process.env.SITE_URL || '').replace(/\/$/, '')}/lesson?id=${encodeURIComponent(o.postId)}&token=${encodeURIComponent(o.token)}`;
+  mailer.send({
+    to: o.email, replyTo: mailer.owner, subject: `Your lesson: ${o.title}`,
+    text: `Thank you for your payment of N${Number(o.amount).toLocaleString('en-NG')}.\n\nOpen your lesson here (keep this link, it works on any device):\n${link}\n\nEric Azibataram`
+  });
+  mailer.send({ to: mailer.owner, subject: `Lesson sold: ${o.title}`, text: `${o.email} paid N${Number(o.amount).toLocaleString('en-NG')} for "${o.title}".` });
+}
 const serviceNames = () => [...db.services.map((x) => x.name), 'Something else'];
 
 app.post('/api/book', formLimiter, (req, res) => {
@@ -110,13 +132,17 @@ app.post('/api/book', formLimiter, (req, res) => {
   const name = clean(b.name, 100), email = clean(b.email, 254).toLowerCase();
   const service = clean(b.service, 60), details = clean(b.details, 2000);
   const preferredDate = /^\d{4}-\d{2}-\d{2}$/.test(b.preferredDate || '') ? b.preferredDate : '';
+  const phone = clean(b.phone, 25);
   if (name.length < 2) return res.status(400).json({ error: 'Please enter your full name.' });
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+  if (phone && !/^\+?[\d\s\-()]{7,25}$/.test(phone)) return res.status(400).json({ error: 'Please enter a valid phone number, or leave it empty.' });
   if (!serviceNames().includes(service)) return res.status(400).json({ error: 'Please choose a service.' });
   if (details.length < 10) return res.status(400).json({ error: 'Please tell me a little more (at least 10 characters).' });
   if (db.bookings.length >= 5000) return res.status(503).json({ error: 'Bookings are temporarily closed.' });
-  db.bookings.push({ id: crypto.randomUUID(), name, email, service, preferredDate, details, status: 'new', createdAt: new Date().toISOString() });
+  const booking = { id: crypto.randomUUID(), name, email, phone, service, preferredDate, details, status: 'new', createdAt: new Date().toISOString() };
+  db.bookings.push(booking);
   save();
+  notifyBooking(booking); // email you + the customer (does not delay the reply)
   res.status(201).json({ success: true, message: "Booking received! I'll reply to your email soon." });
 });
 
@@ -160,6 +186,7 @@ function markPaid(order) {
     order.token = crypto.randomBytes(24).toString('base64url');
     order.paidAt = new Date().toISOString();
     save();
+    notifyOrder(order);
   }
 }
 const sameToken = (a, b) => {
@@ -181,7 +208,7 @@ app.post('/api/pay/init', payLimiter, async (req, res) => {
       email, amount: post.price * 100, currency: 'NGN', reference, callback_url: `${base}/paid`,
       metadata: { postId: post.id }
     });
-    db.orders.push({ id: crypto.randomUUID(), reference, postId: post.id, title: post.title, email, amount: post.price, status: 'pending', createdAt: new Date().toISOString() });
+    db.orders.push({ id: crypto.randomUUID(), reference, base, postId: post.id, title: post.title, email, amount: post.price, status: 'pending', createdAt: new Date().toISOString() });
     save();
     res.json({ url: data.authorization_url });
   } catch (e) { console.error('paystack init:', e.message); res.status(502).json({ error: 'Could not start payment. Please try again.' }); }
@@ -252,12 +279,18 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+app.post('/api/admin/test-email', requireAdmin, async (req, res) => {
+  if (!mailer.enabled) return res.status(400).json({ error: 'Email is not set up yet. Add BREVO_API_KEY and MAIL_FROM in your hosting settings.' });
+  const r = await mailer.send({ to: mailer.owner, subject: 'Test email from your website', text: 'If you can read this, booking and sales emails are working.' });
+  if (!r.ok) return res.status(502).json({ error: 'Brevo refused it: ' + r.error });
+  res.json({ success: true, to: mailer.owner });
+});
 app.post('/api/admin/logout', requireAdmin, (req, res) => { sessions.destroy(req, res); res.json({ success: true }); });
 
 const httpUrl = (v) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
 /* ---------- Admin API (all behind login + CSRF) ---------- */
 app.get('/api/admin/data', requireAdmin, (req, res) => {
-  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders });
+  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, mail: { enabled: mailer.enabled, to: mailer.owner } });
 });
 
 app.post('/api/admin/posts', requireAdmin, (req, res) => {

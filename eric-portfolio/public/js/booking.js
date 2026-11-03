@@ -16,7 +16,7 @@
     var btn = form.querySelector('button[type=submit]'); btn.disabled = true; box.classList.add('hidden');
     try {
       var data = await api('/api/book', { method: 'POST', body: {
-        name: form.name.value, email: form.email.value, service: form.service.value,
+        name: form.name.value, email: form.email.value, phone: form.phone.value, service: form.service.value,
         preferredDate: form.preferredDate.value, details: form.details.value, website: form.website.value } });
       form.reset(); notice(box, 'ok', data.message || 'Booking received!');
       box.scrollIntoView({ behavior: 'smooth', block: 'center' });

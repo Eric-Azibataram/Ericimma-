@@ -49,3 +49,12 @@ Back up the `data/db.json` file regularly: it holds bookings, posts and subscrib
 5. **WhatsApp button:** set `WHATSAPP_NUMBER`.
 
 Buyers get a private unlock link after paying (also remembered on their device). Sales show in the admin under *Lesson sales*.
+
+## Email alerts for bookings and sales
+The site emails you for every booking (with a Reply button to the customer), emails the customer a confirmation, and emails buyers their private lesson link after payment.
+1. Make a free account at brevo.com.
+2. In Brevo: *Senders, Domains & IPs > Senders* > add the email you want to send from, then click the verification link Brevo emails you.
+3. In Brevo: *SMTP & API > API Keys* > create a key.
+4. In your host (Render) set `BREVO_API_KEY`, `MAIL_FROM` (the verified sender) and optionally `NOTIFY_EMAIL`.
+5. Open `/admin` and tap **Test email**. If it says it sent, bookings will email you too.
+The booking form also asks for an optional WhatsApp/phone number. In the admin each booking shows an **Open WhatsApp** link.

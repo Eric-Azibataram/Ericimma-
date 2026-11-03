@@ -79,9 +79,21 @@
     }).catch(function () {});
   }
 
+  function who(b) {
+    var kids = [h('strong', { text: b.name }), h('br'), (/^[\w.+\-]+@[\w.\-]+$/.test(b.email) ? h('a', { href: 'mailto:' + b.email, text: b.email }) : h('span', { text: b.email }))];
+    if (b.phone) {
+      kids.push(h('br'), h('span', { text: b.phone + '  ' }));
+      var d = b.phone.replace(/\D/g, '');
+      if (d.length === 11 && d.charAt(0) === '0') d = '234' + d.slice(1); // Nigerian number written as 0815...
+      if (d.length >= 8 && d.length <= 15) kids.push(h('a', { href: 'https://wa.me/' + d, target: '_blank', rel: 'noopener noreferrer', text: 'Open WhatsApp' }));
+    }
+    return kids;
+  }
+  var mailWarned = false;
   async function load() {
     try {
       var d = await call('/api/admin/data', 'GET');
+      if (d.mail && !d.mail.enabled && !mailWarned) { mailWarned = true; notice(dashMsg, 'err', 'Email alerts are OFF. Add BREVO_API_KEY and MAIL_FROM in your hosting settings to get an email for every booking.'); }
       $('#sBook').textContent = d.bookings.length;
       $('#sNew').textContent = d.bookings.filter(function (b) { return b.status === 'new'; }).length;
       $('#sSub').textContent = d.subscribers.length; $('#sPost').textContent = d.posts.length;
@@ -92,7 +104,7 @@
         sel.addEventListener('change', function () { call('/api/admin/bookings/' + b.id, 'PATCH', { status: sel.value }).then(load).catch(fail); });
         bb.appendChild(h('tr', {}, [
           cell(fmtDate(b.createdAt) + (b.preferredDate ? ' (wants ' + b.preferredDate + ')' : '')),
-          h('td', {}, [h('strong', { text: b.name }), h('br'), (/^[\w.+\-]+@[\w.\-]+$/.test(b.email) ? h('a', { href: 'mailto:' + b.email, text: b.email }) : h('span', { text: b.email }))]),
+          h('td', {}, who(b)),
           cell(b.service), cell(b.details, 'wrap'), h('td', {}, [sel]),
           h('td', {}, [btn('Delete', 'danger', function () { if (confirm('Delete this booking?')) call('/api/admin/bookings/' + b.id, 'DELETE').then(load).catch(fail); })])
         ]));
@@ -144,6 +156,9 @@
     } catch (err) { notice($('#loginMsg'), 'err', err.message); }
   });
   $('#logoutBtn').addEventListener('click', function () { call('/api/admin/logout', 'POST').finally(function () { csrf = ''; showLogin(); }); });
+  $('#mailBtn').addEventListener('click', function () {
+    call('/api/admin/test-email', 'POST').then(function (r) { notice(dashMsg, 'ok', 'Test email sent to ' + r.to + '. Check your inbox (and spam).'); }).catch(fail);
+  });
   $('#postForm').addEventListener('submit', function (e) {
     e.preventDefault();
     call('/api/admin/posts', 'POST', { title: $('#pTitle').value, content: $('#pContent').value, price: $('#pPrice').value, premium: $('#pPremium').value })
