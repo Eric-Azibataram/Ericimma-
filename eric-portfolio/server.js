@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const { hashPassword, verifyPassword, rateLimit, createSessions, EMAIL_RE, clean, csvSafe } = require('./lib/security');
 const { createStore } = require('./lib/store');
+const { createRemote } = require('./lib/remote');
+const { createStorage } = require('./lib/storage');
 const { createMailer } = require('./lib/mailer');
 const { ALLOWED_FILES, FILE_ID, extOf, sniffFile, safeFileName } = require('./lib/files');
 const mailer = createMailer();
@@ -12,11 +14,11 @@ const mailer = createMailer();
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
-const { db, save } = createStore(DATA_DIR);
-const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-const PRIVATE_DIR = path.join(DATA_DIR, 'private'); // paid files live here and are never served as static files
-fs.mkdirSync(PRIVATE_DIR, { recursive: true });
+const remote = createRemote(); // null unless SUPABASE_URL and SUPABASE_SERVICE_KEY are set
+const store = createStore(DATA_DIR, remote);
+const { db, save } = store;
+const storage = createStorage({ remote, baseDir: DATA_DIR }); // paid files are 'private' and never served as static files
+console.log(remote ? 'Storage: Supabase (your data survives restarts)' : 'Storage: local files in ' + DATA_DIR + (PROD && !process.env.DATA_DIR ? '  WARNING: these are erased on free hosting' : ''));
 
 /* ---------- Secrets ---------- */
 function loadSecret() {
@@ -24,7 +26,7 @@ function loadSecret() {
   const f = path.join(DATA_DIR, '.session_secret');
   try { return fs.readFileSync(f, 'utf8'); } catch {}
   const s = crypto.randomBytes(48).toString('hex');
-  fs.writeFileSync(f, s, { mode: 0o600 });
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(f, s, { mode: 0o600 }); } catch {}
   return s;
 }
 let ADMIN_HASH = process.env.ADMIN_PASSWORD_HASH;
@@ -258,19 +260,22 @@ app.get('/api/lessons/:id', (req, res) => {
 
 
 const dlLimiter = rateLimit({ name: 'dl', windowMs: 10 * 60_000, max: 30 });
-app.get('/api/lessons/:id/file', dlLimiter, (req, res) => {
+app.get('/api/lessons/:id/file', dlLimiter, async (req, res) => {
   const post = db.posts.find((p) => p.id === req.params.id);
   if (!post || !post.file) return res.status(404).json({ error: 'No file for this lesson.' });
   if ((post.price || 0) > 0) {
     const order = db.orders.find((o) => o.postId === post.id && o.status === 'paid' && sameToken(o.token, req.query.token));
     if (!order) return res.status(402).json({ error: 'Please purchase this lesson to download the file.' });
     if ((order.downloads || 0) >= 30) return res.status(429).json({ error: 'Download limit reached. Please contact me and I will help.' });
-    order.downloads = (order.downloads || 0) + 1; save();
   }
-  const full = path.join(PRIVATE_DIR, post.file.id);
-  if (!FILE_ID.test(post.file.id) || !fs.existsSync(full)) return res.status(404).json({ error: 'The file is missing. Please contact me.' });
-  res.set('Content-Type', ALLOWED_FILES[extOf(post.file.id)]);
-  res.download(full, post.file.name, (err) => { if (err && !res.headersSent) res.status(500).json({ error: 'Download failed.' }); });
+  const buf = FILE_ID.test(post.file.id) ? await storage.read('private', post.file.id) : null;
+  if (!buf) return res.status(404).json({ error: 'The file is missing. Please contact me.' });
+  if ((post.price || 0) > 0) { const o = db.orders.find((x) => x.postId === post.id && x.status === 'paid' && sameToken(x.token, req.query.token)); o.downloads = (o.downloads || 0) + 1; save(); }
+  res.set({
+    'Content-Type': ALLOWED_FILES[extOf(post.file.id)], 'Content-Length': buf.length,
+    'Content-Disposition': `attachment; filename="${post.file.name.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(post.file.name)}`
+  });
+  res.send(buf);
 });
 
 /* ---------- Admin auth ---------- */
@@ -310,10 +315,10 @@ app.post('/api/admin/logout', requireAdmin, (req, res) => { sessions.destroy(req
 const httpUrl = (v) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
 /* ---------- Admin API (all behind login + CSRF) ---------- */
 app.get('/api/admin/data', requireAdmin, (req, res) => {
-  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, mail: { enabled: mailer.enabled, to: mailer.owner } });
+  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, mail: { enabled: mailer.enabled, to: mailer.owner }, storageWarning: !remote && PROD && !process.env.DATA_DIR });
 });
 
-app.post('/api/admin/posts', requireAdmin, (req, res) => {
+app.post('/api/admin/posts', requireAdmin, async (req, res) => {
   const title = clean(req.body?.title, 150), content = clean(req.body?.content, 8000);
   const premium = clean(req.body?.premium, 40000);
   const price = Math.round(Number(req.body?.price) || 0);
@@ -322,9 +327,9 @@ app.post('/api/admin/posts', requireAdmin, (req, res) => {
   const fileId = clean(req.body?.fileId, 60), fileName = clean(req.body?.fileName, 100);
   let file = null;
   if (fileId) {
-    const full = path.join(PRIVATE_DIR, fileId);
-    if (!FILE_ID.test(fileId) || !fs.existsSync(full)) return res.status(400).json({ error: 'The uploaded file was not found. Please choose it again.' });
-    file = { id: fileId, name: safeFileName(fileName, extOf(fileId)), size: fs.statSync(full).size };
+    const st = FILE_ID.test(fileId) ? await storage.stat('private', fileId) : null;
+    if (!st) return res.status(400).json({ error: 'The uploaded file was not found. Please choose it again.' });
+    file = { id: fileId, name: safeFileName(fileName, extOf(fileId)), size: st.size };
   }
   if (price > 0 && !premium && !file) return res.status(400).json({ error: 'A paid lesson needs paid content: write it in the paid box, or attach a file.' });
   const post = { id: crypto.randomUUID(), title, content, premium, price, file, createdAt: new Date().toISOString() };
@@ -336,7 +341,7 @@ app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
   const gone = db.posts.find((p) => p.id === req.params.id);
   if (!gone) return res.status(404).json({ error: 'Not found.' });
   db.posts = db.posts.filter((p) => p.id !== req.params.id);
-  if (gone.file && FILE_ID.test(gone.file.id)) fs.rm(path.join(PRIVATE_DIR, gone.file.id), { force: true }, () => {});
+  if (gone.file && FILE_ID.test(gone.file.id)) storage.remove('private', gone.file.id).catch(() => {});
   save(); res.json({ success: true });
 });
 
@@ -400,14 +405,14 @@ app.delete('/api/admin/portfolio/:id', requireAdmin, (req, res) => {
 
 /* ---------- Masterclass files (PDF, Word, ...) ---------- */
 const rawFile = express.raw({ type: 'application/octet-stream', limit: '25mb' });
-app.put('/api/admin/upload-file', requireAdmin, rawFile, (req, res) => {
+app.put('/api/admin/upload-file', requireAdmin, rawFile, async (req, res) => {
   let orig = ''; try { orig = decodeURIComponent(req.get('x-file-name') || ''); } catch {}
   const ext = extOf(orig);
   if (!ALLOWED_FILES[ext]) return res.status(400).json({ error: 'Please choose a PDF, Word (.doc/.docx), PowerPoint (.pptx), Excel (.xlsx) or .zip file.' });
   if (!sniffFile(req.body, ext)) return res.status(400).json({ error: `That file is damaged or is not a real .${ext} file.` });
-  if (fs.readdirSync(PRIVATE_DIR).length >= 200) return res.status(400).json({ error: 'Too many files stored. Delete old lessons first.' });
+  if ((await storage.count('private')) >= 200) return res.status(400).json({ error: 'Too many files stored. Delete old lessons first.' });
   const stored = crypto.randomBytes(12).toString('hex') + '.' + ext;
-  fs.writeFileSync(path.join(PRIVATE_DIR, stored), req.body, { mode: 0o600 });
+  await storage.put('private', stored, req.body, ALLOWED_FILES[ext]);
   res.status(201).json({ fileId: stored, name: safeFileName(orig, ext), size: req.body.length });
 });
 
@@ -422,25 +427,26 @@ function sniffImage(b) {
   if (b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
   return null;
 }
+const IMG_TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
 const rawImage = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], limit: '6mb' });
-app.put('/api/admin/upload', requireAdmin, rawImage, (req, res) => {
+app.put('/api/admin/upload', requireAdmin, rawImage, async (req, res) => {
   const buf = req.body;
   const ext = Buffer.isBuffer(buf) ? sniffImage(buf) : null;
   if (!ext) return res.status(400).json({ error: 'Please choose a JPG, PNG, WebP or GIF picture.' });
-  if (fs.readdirSync(UPLOAD_DIR).length >= 60) return res.status(400).json({ error: 'Too many uploaded pictures. Remove some first.' });
+  if ((await storage.count('uploads')) >= 60) return res.status(400).json({ error: 'Too many uploaded pictures. Remove some first.' });
   const name = crypto.randomBytes(12).toString('hex') + '.' + ext;
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf, { mode: 0o644 });
+  await storage.put('uploads', name, buf, IMG_TYPES[ext]);
   res.status(201).json({ src: '/uploads/' + name });
 });
 const dropIfUnused = (src) => {
   if (!LOCAL_SRC.test(src || '') || Object.values(db.images).some((i) => i.src === src)) return;
-  fs.rm(path.join(UPLOAD_DIR, path.basename(src)), { force: true }, () => {});
+  storage.remove('uploads', path.basename(src)).catch(() => {});
 };
-app.put('/api/admin/images/:slot', requireAdmin, (req, res) => {
+app.put('/api/admin/images/:slot', requireAdmin, async (req, res) => {
   const slot = req.params.slot;
   if (!SLOTS.includes(slot)) return res.status(404).json({ error: 'Unknown picture spot.' });
   const src = clean(req.body?.src, 600), alt = clean(req.body?.alt, 150);
-  const okLocal = LOCAL_SRC.test(src) && fs.existsSync(path.join(UPLOAD_DIR, path.basename(src)));
+  const okLocal = LOCAL_SRC.test(src) && !!(await storage.stat('uploads', path.basename(src)));
   const okLink = !okLocal && /^https:\/\//i.test(src) && httpUrl(src);
   if (!okLocal && !okLink) return res.status(400).json({ error: 'Use an uploaded picture or a link starting with https://' });
   const old = db.images[slot]?.src;
@@ -463,7 +469,13 @@ app.get('/api/admin/subscribers.csv', requireAdmin, (req, res) => {
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 /* ---------- Pages ---------- */
-app.use('/uploads', express.static(UPLOAD_DIR, { dotfiles: 'ignore', index: false, maxAge: PROD ? '7d' : 0 }));
+app.get('/uploads/:name', async (req, res) => {
+  const m = /^[a-f0-9]{24}\.(jpg|png|webp|gif)$/.exec(req.params.name);
+  const buf = m ? await storage.read('uploads', req.params.name) : null;
+  if (!buf) return res.sendStatus(404);
+  res.set({ 'Content-Type': IMG_TYPES[m[1]], 'Cache-Control': PROD ? 'public, max-age=604800' : 'no-cache' });
+  res.send(buf);
+});
 // "/about" -> about.html, "/booking" -> booking.html, etc. Dotfiles are never served.
 app.use(express.static(path.join(__dirname, 'public'), {
   extensions: ['html'], dotfiles: 'ignore', index: 'index.html',
@@ -479,4 +491,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong.' });
 });
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${PROD ? 'production' : 'development'})`));
+store.ready
+  .then(() => (remote ? remote.ensureBucket() : null))
+  .then(() => app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${PROD ? 'production' : 'development'})`)))
+  .catch((e) => { console.error('FATAL: could not load your saved data, so the site is not starting (this protects your data):', e.message); process.exit(1); });
+// Render stops the old copy when you redeploy: save any last changes first.
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { try { await store.flush(); } catch {} process.exit(0); });

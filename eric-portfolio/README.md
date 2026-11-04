@@ -66,3 +66,11 @@ The booking form also asks for an optional WhatsApp/phone number. In the admin e
 4. Under *Masterclass file*, choose your PDF, Word, PowerPoint, Excel or ZIP file (up to 25 MB), then tap **Publish**.
 5. Buyers pay with Paystack, then get a Download button (and an email with their private link if email is set up). The file is stored privately and can only be downloaded with a valid purchase.
 Files are saved in the `private` folder inside `DATA_DIR`, so keep the Render disk attached or they disappear on restart.
+
+## Saving data permanently with Supabase (recommended)
+Without this, your data is saved in files on the server and is ERASED whenever a free host restarts or redeploys.
+1. In Supabase, open your project (or create a new one), go to **SQL Editor**, paste the contents of `supabase-setup.sql` and run it once.
+2. In Supabase go to **Project Settings > API Keys** and copy the **Project URL** and the **secret** key (not the publishable/anon one).
+3. In Render > Environment add `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`, then save (Render redeploys).
+4. Check the Render logs: you should see `Storage: Supabase (your data survives restarts)`.
+Bookings, lessons, orders, subscribers, pictures and masterclass PDFs are then all stored in Supabase. If Supabase can't be reached when the site starts, the site refuses to start rather than risk overwriting your saved data.
