@@ -58,3 +58,11 @@ The site emails you for every booking (with a Reply button to the customer), ema
 4. In your host (Render) set `BREVO_API_KEY`, `MAIL_FROM` (the verified sender) and optionally `NOTIFY_EMAIL`.
 5. Open `/admin` and tap **Test email**. If it says it sent, bookings will email you too.
 The booking form also asks for an optional WhatsApp/phone number. In the admin each booking shows an **Open WhatsApp** link.
+
+## Selling a PDF / Word masterclass
+1. Log in at `/admin` and use **Publish a lesson or announcement**.
+2. Write a short free description in *Public content* (this is what visitors see before buying).
+3. Set the price in Naira (for example `5000`).
+4. Under *Masterclass file*, choose your PDF, Word, PowerPoint, Excel or ZIP file (up to 25 MB), then tap **Publish**.
+5. Buyers pay with Paystack, then get a Download button (and an email with their private link if email is set up). The file is stored privately and can only be downloaded with a valid purchase.
+Files are saved in the `private` folder inside `DATA_DIR`, so keep the Render disk attached or they disappear on restart.

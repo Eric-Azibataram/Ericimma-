@@ -8,11 +8,16 @@
   try {
     var d = await api('/api/lessons/' + encodeURIComponent(id) + (token ? '?token=' + encodeURIComponent(token) : ''));
     show(d); body.textContent = d.body;
+    if (d.file) {
+      $('#fileInfo').textContent = d.file.name + ' (' + (d.file.size / 1048576).toFixed(1) + ' MB)';
+      $('#fileLink').setAttribute('href', '/api/lessons/' + encodeURIComponent(id) + '/file' + (token ? '?token=' + encodeURIComponent(token) : ''));
+      $('#fileBox').classList.remove('hidden');
+    }
   } catch (e) {
     if (e.status === 402) {
       var r = await fetch('/api/lessons/' + encodeURIComponent(id)); var d2 = await r.json();
       show(d2); body.textContent = d2.preview;
-      $('#buyPrice').textContent = 'Price: ' + naira(d2.price) + '. One payment, and the lesson stays unlocked on this device.';
+      $('#buyPrice').textContent = 'Price: ' + naira(d2.price) + '. One payment, and the lesson stays unlocked on this device.' + (d2.file ? ' Includes the file: ' + d2.file.name + ' (' + (d2.file.size / 1048576).toFixed(1) + ' MB).' : '');
       buy.classList.remove('hidden');
       $('#buyForm').addEventListener('submit', async function (ev) {
         ev.preventDefault();

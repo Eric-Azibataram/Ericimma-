@@ -6,6 +6,7 @@ const path = require('path');
 const { hashPassword, verifyPassword, rateLimit, createSessions, EMAIL_RE, clean, csvSafe } = require('./lib/security');
 const { createStore } = require('./lib/store');
 const { createMailer } = require('./lib/mailer');
+const { ALLOWED_FILES, FILE_ID, extOf, sniffFile, safeFileName } = require('./lib/files');
 const mailer = createMailer();
 
 const PROD = process.env.NODE_ENV === 'production';
@@ -14,6 +15,8 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data
 const { db, save } = createStore(DATA_DIR);
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const PRIVATE_DIR = path.join(DATA_DIR, 'private'); // paid files live here and are never served as static files
+fs.mkdirSync(PRIVATE_DIR, { recursive: true });
 
 /* ---------- Secrets ---------- */
 function loadSecret() {
@@ -84,7 +87,7 @@ app.use('/api', (req, res, next) => {
       if (!ok) return res.status(403).json({ error: 'Cross-origin request blocked.' });
     } catch { return res.status(403).json({ error: 'Bad origin.' }); }
   }
-  if (req.path !== '/admin/upload' && Number(req.get('content-length')) > 0 && !req.is('application/json')) return res.status(415).json({ error: 'JSON required.' });
+  if (!['/admin/upload', '/admin/upload-file'].includes(req.path) && Number(req.get('content-length')) > 0 && !req.is('application/json')) return res.status(415).json({ error: 'JSON required.' });
   next();
 });
 
@@ -100,7 +103,7 @@ app.get('/api/posts', (req, res) => {
   const posts = [...db.posts]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit)
-    .map(({ id, title, content, createdAt, price }) => ({ id, title, content, createdAt, price: price || 0 }));
+    .map(({ id, title, content, createdAt, price, file }) => ({ id, title, content, createdAt, price: price || 0, hasFile: !!file }));
   res.json(posts);
 });
 
@@ -247,10 +250,27 @@ app.get('/api/lessons/:id', (req, res) => {
   const post = db.posts.find((p) => p.id === req.params.id);
   if (!post) return res.status(404).json({ error: 'Lesson not found.' });
   const price = post.price || 0;
-  const base = { id: post.id, title: post.title, createdAt: post.createdAt, price, preview: post.content };
+  const base = { id: post.id, title: post.title, createdAt: post.createdAt, price, preview: post.content, file: post.file ? { name: post.file.name, size: post.file.size } : null };
   const unlocked = price === 0 || db.orders.some((o) => o.postId === post.id && o.status === 'paid' && sameToken(o.token, req.query.token));
   if (!unlocked) return res.status(402).json({ ...base, locked: true });
   res.json({ ...base, locked: false, body: post.premium ? post.content + '\n\n' + post.premium : post.content });
+});
+
+
+const dlLimiter = rateLimit({ name: 'dl', windowMs: 10 * 60_000, max: 30 });
+app.get('/api/lessons/:id/file', dlLimiter, (req, res) => {
+  const post = db.posts.find((p) => p.id === req.params.id);
+  if (!post || !post.file) return res.status(404).json({ error: 'No file for this lesson.' });
+  if ((post.price || 0) > 0) {
+    const order = db.orders.find((o) => o.postId === post.id && o.status === 'paid' && sameToken(o.token, req.query.token));
+    if (!order) return res.status(402).json({ error: 'Please purchase this lesson to download the file.' });
+    if ((order.downloads || 0) >= 30) return res.status(429).json({ error: 'Download limit reached. Please contact me and I will help.' });
+    order.downloads = (order.downloads || 0) + 1; save();
+  }
+  const full = path.join(PRIVATE_DIR, post.file.id);
+  if (!FILE_ID.test(post.file.id) || !fs.existsSync(full)) return res.status(404).json({ error: 'The file is missing. Please contact me.' });
+  res.set('Content-Type', ALLOWED_FILES[extOf(post.file.id)]);
+  res.download(full, post.file.name, (err) => { if (err && !res.headersSent) res.status(500).json({ error: 'Download failed.' }); });
 });
 
 /* ---------- Admin auth ---------- */
@@ -299,16 +319,24 @@ app.post('/api/admin/posts', requireAdmin, (req, res) => {
   const price = Math.round(Number(req.body?.price) || 0);
   if (!title || !content) return res.status(400).json({ error: 'Title and content are required.' });
   if (price < 0 || price > 10_000_000) return res.status(400).json({ error: 'Price must be between 0 and 10,000,000.' });
-  if (price > 0 && !premium) return res.status(400).json({ error: 'A paid lesson needs paid content (the part buyers unlock).' });
-  const post = { id: crypto.randomUUID(), title, content, premium, price, createdAt: new Date().toISOString() };
+  const fileId = clean(req.body?.fileId, 60), fileName = clean(req.body?.fileName, 100);
+  let file = null;
+  if (fileId) {
+    const full = path.join(PRIVATE_DIR, fileId);
+    if (!FILE_ID.test(fileId) || !fs.existsSync(full)) return res.status(400).json({ error: 'The uploaded file was not found. Please choose it again.' });
+    file = { id: fileId, name: safeFileName(fileName, extOf(fileId)), size: fs.statSync(full).size };
+  }
+  if (price > 0 && !premium && !file) return res.status(400).json({ error: 'A paid lesson needs paid content: write it in the paid box, or attach a file.' });
+  const post = { id: crypto.randomUUID(), title, content, premium, price, file, createdAt: new Date().toISOString() };
   db.posts.unshift(post); save();
   res.status(201).json({ success: true, post });
 });
 
 app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
-  const n = db.posts.length;
+  const gone = db.posts.find((p) => p.id === req.params.id);
+  if (!gone) return res.status(404).json({ error: 'Not found.' });
   db.posts = db.posts.filter((p) => p.id !== req.params.id);
-  if (db.posts.length === n) return res.status(404).json({ error: 'Not found.' });
+  if (gone.file && FILE_ID.test(gone.file.id)) fs.rm(path.join(PRIVATE_DIR, gone.file.id), { force: true }, () => {});
   save(); res.json({ success: true });
 });
 
@@ -369,6 +397,19 @@ app.delete('/api/admin/portfolio/:id', requireAdmin, (req, res) => {
   save(); res.json({ success: true });
 });
 
+
+/* ---------- Masterclass files (PDF, Word, ...) ---------- */
+const rawFile = express.raw({ type: 'application/octet-stream', limit: '25mb' });
+app.put('/api/admin/upload-file', requireAdmin, rawFile, (req, res) => {
+  let orig = ''; try { orig = decodeURIComponent(req.get('x-file-name') || ''); } catch {}
+  const ext = extOf(orig);
+  if (!ALLOWED_FILES[ext]) return res.status(400).json({ error: 'Please choose a PDF, Word (.doc/.docx), PowerPoint (.pptx), Excel (.xlsx) or .zip file.' });
+  if (!sniffFile(req.body, ext)) return res.status(400).json({ error: `That file is damaged or is not a real .${ext} file.` });
+  if (fs.readdirSync(PRIVATE_DIR).length >= 200) return res.status(400).json({ error: 'Too many files stored. Delete old lessons first.' });
+  const stored = crypto.randomBytes(12).toString('hex') + '.' + ext;
+  fs.writeFileSync(path.join(PRIVATE_DIR, stored), req.body, { mode: 0o600 });
+  res.status(201).json({ fileId: stored, name: safeFileName(orig, ext), size: req.body.length });
+});
 
 /* ---------- Pictures (upload or link) ---------- */
 const SLOTS = ['profile', 'home-banner', 'about-extra'];

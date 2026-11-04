@@ -113,7 +113,7 @@
 
       var pb = $('#postBody'); pb.textContent = '';
       d.posts.forEach(function (p) {
-        pb.appendChild(h('tr', {}, [cell(fmtDate(p.createdAt)), cell(p.title + (p.price > 0 ? '  (' + naira(p.price) + ')' : '')),
+        pb.appendChild(h('tr', {}, [cell(fmtDate(p.createdAt)), cell(p.title + (p.price > 0 ? '  (' + naira(p.price) + ')' : '') + (p.file ? '  [file: ' + p.file.name + ']' : '')),
           h('td', {}, [btn('Delete', 'danger', function () { if (confirm('Delete this post?')) call('/api/admin/posts/' + p.id, 'DELETE').then(load).catch(fail); })])]));
       });
       var paidOrders = d.orders.filter(function (o) { return o.status === 'paid'; });
@@ -159,10 +159,20 @@
   $('#mailBtn').addEventListener('click', function () {
     call('/api/admin/test-email', 'POST').then(function (r) { notice(dashMsg, 'ok', 'Test email sent to ' + r.to + '. Check your inbox (and spam).'); }).catch(fail);
   });
-  $('#postForm').addEventListener('submit', function (e) {
+  function uploadFile(f) {
+    return fetch('/api/admin/upload-file', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream', 'X-CSRF-Token': csrf, 'X-File-Name': encodeURIComponent(f.name) }, body: f })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Upload failed.'); return d; }); });
+  }
+  $('#postForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    call('/api/admin/posts', 'POST', { title: $('#pTitle').value, content: $('#pContent').value, price: $('#pPrice').value, premium: $('#pPremium').value })
-      .then(function () { $('#postForm').reset(); notice(dashMsg, 'ok', 'Published!'); load(); }).catch(fail);
+    var btn = $('#postForm').querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      var fileId = '', fileName = '', f = $('#pFile').files[0];
+      if (f) { notice(dashMsg, 'ok', 'Uploading your file, please wait...'); var up = await uploadFile(f); fileId = up.fileId; fileName = up.name; }
+      await call('/api/admin/posts', 'POST', { title: $('#pTitle').value, content: $('#pContent').value, price: $('#pPrice').value, premium: $('#pPremium').value, fileId: fileId, fileName: fileName });
+      $('#postForm').reset(); notice(dashMsg, 'ok', 'Published!'); load();
+    } catch (err) { fail(err); }
+    btn.disabled = false;
   });
   $('#svcForm').addEventListener('submit', function (e) {
     e.preventDefault();
