@@ -7,6 +7,7 @@ const { hashPassword, verifyPassword, rateLimit, createSessions, EMAIL_RE, clean
 const { createStore } = require('./lib/store');
 const { createRemote } = require('./lib/remote');
 const { createStorage } = require('./lib/storage');
+const { normalizeImageLink } = require('./lib/images');
 const { createMailer } = require('./lib/mailer');
 const { ALLOWED_FILES, FILE_ID, extOf, sniffFile, safeFileName } = require('./lib/files');
 const mailer = createMailer();
@@ -388,18 +389,30 @@ app.delete('/api/admin/services/:id', requireAdmin, (req, res) => {
   if (db.services.length === n) return res.status(404).json({ error: 'Not found.' });
   save(); res.json({ success: true });
 });
-app.post('/api/admin/portfolio', requireAdmin, (req, res) => {
+app.post('/api/admin/portfolio', requireAdmin, async (req, res) => {
   const title = clean(req.body?.title, 120), description = clean(req.body?.description, 600), category = clean(req.body?.category, 40);
   const rawLink = clean(req.body?.link, 500), link = rawLink ? httpUrl(rawLink) : '';
-  if (!title) return res.status(400).json({ error: 'Project title is required.' });
+  const rawImage = clean(req.body?.image, 600); let image = '';
+  if (rawImage) {
+    if (LOCAL_SRC.test(rawImage)) {
+      if (!(await storage.stat('uploads', path.basename(rawImage)))) return res.status(400).json({ error: 'The uploaded picture was not found. Please upload it again.' });
+      image = rawImage;
+    } else {
+      const n = normalizeImageLink(rawImage);
+      if (n.error) return res.status(400).json({ error: n.error });
+      image = n.url;
+    }
+  }
+  if (!title && !image) return res.status(400).json({ error: 'Add a title or a picture.' });
   if (rawLink && !link) return res.status(400).json({ error: 'Link must start with http:// or https://' });
-  db.portfolio.unshift({ id: crypto.randomUUID(), title, description, category, link, createdAt: new Date().toISOString() });
+  db.portfolio.unshift({ id: crypto.randomUUID(), title, description, category, link, image, createdAt: new Date().toISOString() });
   save(); res.status(201).json({ success: true });
 });
 app.delete('/api/admin/portfolio/:id', requireAdmin, (req, res) => {
-  const n = db.portfolio.length; db.portfolio = db.portfolio.filter((x) => x.id !== req.params.id);
-  if (db.portfolio.length === n) return res.status(404).json({ error: 'Not found.' });
-  save(); res.json({ success: true });
+  const gone = db.portfolio.find((x) => x.id === req.params.id);
+  if (!gone) return res.status(404).json({ error: 'Not found.' });
+  db.portfolio = db.portfolio.filter((x) => x.id !== req.params.id);
+  save(); dropIfUnused(gone.image); res.json({ success: true });
 });
 
 
@@ -433,13 +446,13 @@ app.put('/api/admin/upload', requireAdmin, rawImage, async (req, res) => {
   const buf = req.body;
   const ext = Buffer.isBuffer(buf) ? sniffImage(buf) : null;
   if (!ext) return res.status(400).json({ error: 'Please choose a JPG, PNG, WebP or GIF picture.' });
-  if ((await storage.count('uploads')) >= 60) return res.status(400).json({ error: 'Too many uploaded pictures. Remove some first.' });
+  if ((await storage.count('uploads')) >= 250) return res.status(400).json({ error: 'Too many uploaded pictures. Remove some first.' });
   const name = crypto.randomBytes(12).toString('hex') + '.' + ext;
   await storage.put('uploads', name, buf, IMG_TYPES[ext]);
   res.status(201).json({ src: '/uploads/' + name });
 });
 const dropIfUnused = (src) => {
-  if (!LOCAL_SRC.test(src || '') || Object.values(db.images).some((i) => i.src === src)) return;
+  if (!LOCAL_SRC.test(src || '') || Object.values(db.images).some((i) => i.src === src) || db.portfolio.some((p) => p.image === src)) return;
   storage.remove('uploads', path.basename(src)).catch(() => {});
 };
 app.put('/api/admin/images/:slot', requireAdmin, async (req, res) => {

@@ -26,8 +26,11 @@
     <div><button class="btn" type="submit">Add service</button></div></form>
     <div class="table-wrap mt14"><table><thead><tr><th>Service</th><th>Price (&#8358;)</th><th></th></tr></thead><tbody id="svcBody"></tbody></table></div></div>
   <div class="card mb22"><h3>Portfolio projects</h3>
-    <form id="porForm" class="stack mt12"><div><label for="oTitle">Project title</label><input id="oTitle" maxlength="120" required></div><div><label for="oCat">Category (e.g. Web Design)</label><input id="oCat" maxlength="40"></div>
-    <div><label for="oDesc">What you did and the result</label><textarea id="oDesc" rows="3" maxlength="600"></textarea></div><div><label for="oLink">Link to the live project (optional)</label><input id="oLink" type="url" maxlength="500" placeholder="https://"></div>
+    <p class="muted">Add graphic designs and projects. Choose one or many pictures from your phone, or paste a picture link (a Google Drive link works if it is shared as "Anyone with the link").</p>
+    <form id="porForm" class="stack mt12"><div><label for="oFiles">Pictures from your phone or computer (you can select many)</label><input id="oFiles" type="file" accept="image/*" multiple></div>
+    <div><label for="oImgLink">Or a picture link (https://...)</label><input id="oImgLink" type="url" maxlength="600" placeholder="https://drive.google.com/file/d/..."></div>
+    <div><label for="oTitle">Title (optional when adding pictures)</label><input id="oTitle" maxlength="120"></div><div><label for="oCat">Category (e.g. Web Design)</label><input id="oCat" maxlength="40"></div>
+    <div><label for="oDesc">What you did and the result</label><textarea id="oDesc" rows="3" maxlength="600"></textarea></div><div><label for="oLink">Link to view the live project (optional)</label><input id="oLink" type="url" maxlength="500" placeholder="https://"></div>
     <div><button class="btn" type="submit">Add project</button></div></form>
     <div class="table-wrap mt14"><table><thead><tr><th>Project</th><th>Category</th><th></th></tr></thead><tbody id="porBody"></tbody></table></div></div>
   <div class="card mb22"><h3>Lesson sales</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Lesson</th><th>Buyer</th><th>Amount</th><th>Status</th></tr></thead><tbody id="ordBody"></tbody></table></div></div>

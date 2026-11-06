@@ -101,3 +101,15 @@ td.wrap{max-width:320px;white-space:pre-wrap;word-wrap:break-word}
 .pic-row{border-top:1px solid var(--line);padding:16px 0}
 .pic-row img{max-width:160px;max-height:110px;border-radius:8px;display:block;margin:8px 0}
 .pic-row .stack{margin-top:10px}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 16px;cursor:pointer;font:inherit;color:var(--ink)}
+.chip.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pf-card{padding:0;overflow:hidden}
+.pf-img{display:block;width:100%;padding:0;border:0;background:#eef2f8;cursor:zoom-in}
+.pf-img img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.pf-body{padding:18px 22px 22px}
+.lightbox{position:fixed;inset:0;background:rgba(5,12,28,.9);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;cursor:zoom-out}
+.lightbox img{max-width:100%;max-height:90vh;border-radius:8px;background:#fff}
+.lb-close{position:absolute;top:14px;right:14px;background:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+.thumb{width:54px;height:40px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px}

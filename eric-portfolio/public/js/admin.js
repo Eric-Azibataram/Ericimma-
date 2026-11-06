@@ -21,11 +21,12 @@
     { id: 'about-extra', label: 'Second About photo', help: 'A second picture on the About page, under your profile photo.' }
   ];
   // Shrink phone photos before upload so pages load fast and data is saved.
-  function shrink(file) {
+  function shrink(file, maxDim) {
     function draw(src, w, h0) {
-      var max = 1600, r = Math.min(1, max / Math.max(w, h0));
+      var max = maxDim || 1600, r = Math.min(1, max / Math.max(w, h0));
       var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(h0 * r);
-      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      var ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height); // white behind transparent PNGs
+      ctx.drawImage(src, 0, 0, c.width, c.height);
       return new Promise(function (resolve, reject) {
         c.toBlob(function (bl) { bl ? resolve(bl) : reject(new Error('Could not read that picture.')); }, 'image/jpeg', 0.85);
       });
@@ -135,7 +136,8 @@
       });
       var po = $('#porBody'); po.textContent = '';
       d.portfolio.forEach(function (x) {
-        po.appendChild(h('tr', {}, [cell(x.title), cell(x.category || ''),
+        var first = h('td', {}, x.image ? [h('img', { class: 'thumb', src: x.image, alt: '', referrerpolicy: 'no-referrer' }), h('span', { text: x.title || '(picture)' })] : [h('span', { text: x.title })]);
+        po.appendChild(h('tr', {}, [first, cell(x.category || ''),
           h('td', {}, [btn('Delete', 'danger', function () { if (confirm('Delete this project?')) call('/api/admin/portfolio/' + x.id, 'DELETE').then(load).catch(fail); })])]));
       });
       if (!d.portfolio.length) po.appendChild(h('tr', {}, [h('td', { colspan: 3, text: 'No projects yet. Add your best work above.' })]));
@@ -180,10 +182,24 @@
     call('/api/admin/services', 'POST', { name: $('#sName').value, description: $('#sDesc').value, price: $('#sPrice').value, unit: $('#sUnit').value })
       .then(function () { $('#svcForm').reset(); notice(dashMsg, 'ok', 'Service added.'); load(); }).catch(fail);
   });
-  $('#porForm').addEventListener('submit', function (e) {
+  $('#porForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    call('/api/admin/portfolio', 'POST', { title: $('#oTitle').value, category: $('#oCat').value, description: $('#oDesc').value, link: $('#oLink').value })
-      .then(function () { $('#porForm').reset(); notice(dashMsg, 'ok', 'Project added.'); load(); }).catch(fail);
+    var btn = $('#porForm').querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      var files = [].slice.call($('#oFiles').files), title = $('#oTitle').value;
+      var base = { category: $('#oCat').value, description: $('#oDesc').value, link: $('#oLink').value };
+      if (files.length) {
+        for (var i = 0; i < files.length; i++) {
+          notice(dashMsg, 'ok', 'Uploading picture ' + (i + 1) + ' of ' + files.length + '...');
+          var up = await uploadBlob(await shrink(files[i], 2000));
+          await call('/api/admin/portfolio', 'POST', Object.assign({}, base, { title: files.length === 1 ? title : (title ? title + ' ' + (i + 1) : ''), image: up.src }));
+        }
+      } else {
+        await call('/api/admin/portfolio', 'POST', Object.assign({}, base, { title: title, image: $('#oImgLink').value.trim() }));
+      }
+      $('#porForm').reset(); notice(dashMsg, 'ok', 'Added to your portfolio.'); load();
+    } catch (err) { fail(err); }
+    btn.disabled = false;
   });
   api('/api/admin/session').then(function (s) { if (s.authenticated) { csrf = s.csrf; showDash(); } else showLogin(); }).catch(showLogin);
 })();

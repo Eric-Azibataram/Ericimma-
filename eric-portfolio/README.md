@@ -74,3 +74,10 @@ Without this, your data is saved in files on the server and is ERASED whenever a
 3. In Render > Environment add `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`, then save (Render redeploys).
 4. Check the Render logs: you should see `Storage: Supabase (your data survives restarts)`.
 Bookings, lessons, orders, subscribers, pictures and masterclass PDFs are then all stored in Supabase. If Supabase can't be reached when the site starts, the site refuses to start rather than risk overwriting your saved data.
+
+## Portfolio pictures and graphic designs
+In `/admin` > **Portfolio projects** you can:
+- choose one or many pictures from your phone (they are resized automatically), or
+- paste a picture link. Google Drive links work if the picture is shared as "Anyone with the link" (paste the link of ONE picture, not a folder).
+Titles are optional for pictures. Give pictures a category (for example "Graphic Design") and visitors get filter buttons on the Portfolio page, and can tap any picture to view it large.
+For reliability, uploading directly is better than a Drive link, because Google can limit pictures that are loaded from Drive.
