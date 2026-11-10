@@ -95,7 +95,7 @@
     try {
       var d = await call('/api/admin/data', 'GET');
       if (d.storageWarning && !storeWarned) { storeWarned = true; notice(dashMsg, 'err', 'WARNING: your bookings and lessons are saved in temporary files and will be erased when the site restarts. Connect Supabase (see the README) or attach a Render disk.'); }
-      if (d.mail && !d.mail.enabled && !mailWarned && !storeWarned) { mailWarned = true; notice(dashMsg, 'err', 'Email alerts are OFF. Add BREVO_API_KEY and MAIL_FROM in your hosting settings to get an email for every booking.'); }
+      if (d.mail && !d.mail.enabled && !mailWarned && !storeWarned) { mailWarned = true; notice(dashMsg, 'err', 'Booking alerts are OFF. Add FORMSPREE_URL in your hosting settings to get an email for every booking.'); }
       $('#sBook').textContent = d.bookings.length;
       $('#sNew').textContent = d.bookings.filter(function (b) { return b.status === 'new'; }).length;
       $('#sSub').textContent = d.subscribers.length; $('#sPost').textContent = d.posts.length;

@@ -90,3 +90,10 @@ For reliability, uploading directly is better than a Drive link, because Google 
 - The "Who is this for?" text is in `public/index.html` if you want to change the wording.
 - Footer links: Explore (Home, About, Services, Portfolio, Library, Booking) and Information (Privacy Policy, Terms of Service). Review `public/terms.html` and `public/privacy.html` and edit anything that is not true for you.
 - Animations switch off automatically for visitors who have "reduce motion" turned on.
+
+## Booking alerts with Formspree
+1. In Formspree, open your form and copy its address (it looks like `https://formspree.io/f/abcd1234`).
+2. In the form's settings turn OFF reCAPTCHA and "Restrict to domain", because the website sends bookings from its server.
+3. In Render > Environment add `FORMSPREE_URL` with that address and save.
+4. Open `/admin` and tap **Test email**. You should get a test message in the inbox linked to your Formspree form.
+Every booking and every lesson sale then arrives as an email. The free Formspree plan allows 50 submissions a month. Customers see an on-screen confirmation; confirmation emails to customers need an email service such as Brevo.

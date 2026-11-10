@@ -12,6 +12,8 @@ const { cspFor } = require('./lib/csp');
 const { createMailer } = require('./lib/mailer');
 const { ALLOWED_FILES, FILE_ID, extOf, sniffFile, safeFileName } = require('./lib/files');
 const mailer = createMailer();
+const { createFormspree } = require('./lib/formspree');
+const formspree = createFormspree();
 
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
@@ -112,6 +114,12 @@ app.get('/api/posts', (req, res) => {
 });
 
 function notifyBooking(b) {
+  if (formspree.enabled) {
+    formspree.send({
+      _subject: `New booking: ${b.service} from ${b.name}`, name: b.name, email: b.email, phone: b.phone || '(not given)',
+      service: b.service, preferred_date: b.preferredDate || '(not given)', message: b.details
+    });
+  }
   if (!mailer.enabled) return;
   mailer.send({
     to: mailer.owner, replyTo: b.email, subject: `New booking: ${b.service} from ${b.name}`,
@@ -123,6 +131,9 @@ function notifyBooking(b) {
   });
 }
 function notifyOrder(o) {
+  if (formspree.enabled) {
+    formspree.send({ _subject: `Lesson sold: ${o.title}`, email: o.email, lesson: o.title, amount: 'N' + Number(o.amount).toLocaleString('en-NG'), message: `${o.email} paid for "${o.title}".` });
+  }
   if (!mailer.enabled) return;
   const link = `${o.base || (process.env.SITE_URL || '').replace(/\/$/, '')}/lesson?id=${encodeURIComponent(o.postId)}&token=${encodeURIComponent(o.token)}`;
   mailer.send({
@@ -316,7 +327,12 @@ function requireAdmin(req, res, next) {
 }
 
 app.post('/api/admin/test-email', requireAdmin, async (req, res) => {
-  if (!mailer.enabled) return res.status(400).json({ error: 'Email is not set up yet. Add BREVO_API_KEY and MAIL_FROM in your hosting settings.' });
+  if (formspree.enabled) {
+    const f = await formspree.send({ _subject: 'Test message from your website', name: 'Website test', email: 'test@example.com', message: 'If you can read this, booking alerts are working.' });
+    if (!f.ok) return res.status(502).json({ error: 'Formspree refused it: ' + f.error + '. In Formspree, open your form settings and turn off reCAPTCHA and "Restrict to domain".' });
+    return res.json({ success: true, to: 'the inbox linked to your Formspree form' });
+  }
+  if (!mailer.enabled) return res.status(400).json({ error: 'Email is not set up yet. Add FORMSPREE_URL (or BREVO_API_KEY and MAIL_FROM) in your hosting settings.' });
   const r = await mailer.send({ to: mailer.owner, subject: 'Test email from your website', text: 'If you can read this, booking and sales emails are working.' });
   if (!r.ok) return res.status(502).json({ error: 'Brevo refused it: ' + r.error });
   res.json({ success: true, to: mailer.owner });
@@ -326,7 +342,7 @@ app.post('/api/admin/logout', requireAdmin, (req, res) => { sessions.destroy(req
 const httpUrl = (v) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
 /* ---------- Admin API (all behind login + CSRF) ---------- */
 app.get('/api/admin/data', requireAdmin, (req, res) => {
-  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, settings: db.settings, testimonials: db.testimonials, mail: { enabled: mailer.enabled, to: mailer.owner }, storageWarning: !remote && PROD && !process.env.DATA_DIR });
+  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, settings: db.settings, testimonials: db.testimonials, mail: { enabled: mailer.enabled || formspree.enabled, to: mailer.owner || 'your Formspree inbox' }, storageWarning: !remote && PROD && !process.env.DATA_DIR });
 });
 
 app.post('/api/admin/posts', requireAdmin, async (req, res) => {
