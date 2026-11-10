@@ -1,5 +1,6 @@
 (function () {
   'use strict';
+  document.documentElement.classList.add('js'); // lets animations start hidden only when scripts work
   // Mobile menu
   var btn = document.getElementById('menuBtn'), links = document.getElementById('navLinks');
   if (btn && links) {
@@ -62,6 +63,23 @@
   if (location.pathname.indexOf('/admin') !== 0) {
     api('/api/config').then(function (c) {
       if (c.whatsapp) document.body.appendChild(h('a', { class: 'wa', href: 'https://wa.me/' + c.whatsapp, target: '_blank', rel: 'noopener noreferrer', 'aria-label': 'Chat on WhatsApp', text: 'Chat on WhatsApp' }));
+    }).catch(function () {});
+  }
+
+  // Contact details and availability set in the admin (shown in the footer and the home page contact block)
+  if (location.pathname.indexOf('/admin') !== 0) {
+    api('/api/site').then(function (site) {
+      window.__site = site; document.dispatchEvent(new CustomEvent('site-loaded', { detail: site }));
+      var phone = site.phone || (site.whatsapp ? '+' + site.whatsapp : '');
+      function setLink(sel, val, href) { document.querySelectorAll(sel).forEach(function (a) { a.textContent = val; a.setAttribute('href', href); }); }
+      if (phone) { setLink('[data-site=phone]', phone, 'tel:' + phone.replace(/[^\d+]/g, '')); ['fPhoneRow', 'phoneRow'].forEach(function (id) { var r = document.getElementById(id); if (r) r.classList.remove('hidden'); }); }
+      if (site.email) { setLink('[data-site=email]', site.email, 'mailto:' + site.email); ['fEmailRow', 'emailRow'].forEach(function (id) { var r = document.getElementById(id); if (r) r.classList.remove('hidden'); }); }
+      if (site.hours && site.hours.length) {
+        [['fHours', 'fHoursList'], ['hoursBlock', 'hoursList']].forEach(function (pair) {
+          var box = document.getElementById(pair[0]), ul = document.getElementById(pair[1]); if (!box || !ul) return;
+          ul.textContent = ''; site.hours.forEach(function (l) { ul.appendChild(h('li', { text: l })); }); box.classList.remove('hidden');
+        });
+      }
     }).catch(function () {});
   }
 

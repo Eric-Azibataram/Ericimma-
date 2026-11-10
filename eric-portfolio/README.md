@@ -81,3 +81,12 @@ In `/admin` > **Portfolio projects** you can:
 - paste a picture link. Google Drive links work if the picture is shared as "Anyone with the link" (paste the link of ONE picture, not a folder).
 Titles are optional for pictures. Give pictures a category (for example "Graphic Design") and visitors get filter buttons on the Portfolio page, and can tap any picture to view it large.
 For reliability, uploading directly is better than a Drive link, because Google can limit pictures that are loaded from Drive.
+
+## Home page upgrade (animated globe, numbers, who it is for, reads, testimonials, contact)
+- The home page has a rotating 3D globe behind the headline, scroll animations, floating cards, and cards that burst out from the centre.
+- In `/admin` > **Home page numbers, contact & availability** you set up to four counters (for example `50+` Projects completed), your phone/WhatsApp, contact email and opening hours. Anything left empty is hidden. Do not add numbers that are not true.
+- In `/admin` > **Testimonials** add real feedback from real people (with their permission). The section appears once you add one.
+- "Recommended reads" shows your latest lessons, marked Free or with the price. "Browse Library" goes to the Lessons page.
+- The "Who is this for?" text is in `public/index.html` if you want to change the wording.
+- Footer links: Explore (Home, About, Services, Portfolio, Library, Booking) and Information (Privacy Policy, Terms of Service). Review `public/terms.html` and `public/privacy.html` and edit anything that is not true for you.
+- Animations switch off automatically for visitors who have "reduce motion" turned on.

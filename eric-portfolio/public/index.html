@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eric Azibataram | Web Designer & Tech Educator</title>
 <meta name="description" content="Web design, graphics, video editing and tech lessons by Eric Azibataram.">
-<link rel="stylesheet" href="/css/style.css?v=5">
+<link rel="stylesheet" href="/css/style.css?v=6">
+<meta name="google-adsense-account" content="ca-pub-5637892978233576">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5637892978233576"
-       crossorigin="anonymous"></script>
+     crossorigin="anonymous"></script>
 </head>
 <body>
 <header class="site-header"><div class="container">
@@ -23,28 +24,71 @@
   </ul>
 </div></header>
 <main>
-<section class="hero"><div class="container">
+<section class="hero hero-globe"><div class="globe-wrap" aria-hidden="true"><div class="globe-scale"><div class="tilt"><div class="globe">
+  <i class="m m1"></i><i class="m m2"></i><i class="m m3"></i><i class="m m4"></i><i class="m m5"></i><i class="m m6"></i>
+  <i class="lat lat1"></i><i class="lat lat2"></i><i class="lat lat3"></i><i class="lat lat4"></i><i class="lat lat5"></i>
+  <b class="dot dot1"></b><b class="dot dot2"></b><b class="dot dot3"></b><b class="dot dot4"></b>
+</div></div></div></div>
+<div class="container">
   <div class="hero-pic hidden" data-slot="profile"></div>
-  <h1>Websites, graphics and videos that make your brand stand out.</h1>
-  <p>I'm Eric, a web designer and digital practitioner. Work with me, or learn the skills yourself through my lessons.</p>
-  <a class="btn light" href="/booking">Book a Session</a><a class="btn ghost" href="/lessons">Browse Lessons</a>
+  <h1 class="reveal">Websites, graphics and videos that make your brand stand out.</h1>
+  <p class="reveal">I'm Eric, a web designer and digital practitioner. Work with me, or learn the skills yourself through my lessons.</p>
+  <div class="reveal"><a class="btn light" href="/booking">Book a Session</a><a class="btn ghost" href="#who">Who I help</a></div>
 </div></section>
 <div class="container"><div class="banner hidden" data-slot="home-banner"></div></div>
+
+<section class="block hidden" id="statsBlock"><div class="container">
+  <div class="stats" id="stats"></div>
+</div></section>
+
 <section class="block"><div class="container">
-  <h2 class="title">What I do</h2><p class="lead">Pick a service and I'll take it from idea to finished product.</p>
+  <h2 class="title reveal">What I do</h2><p class="lead reveal">Pick a service and I'll take it from idea to finished product.</p>
   <div class="grid" id="services" data-home="1"><p class="muted">Loading...</p></div>
   <p class="mt20"><a href="/services">See all services and prices &rarr;</a></p>
 </div></section>
-<section class="bg-white block"><div class="container">
-  <h2 class="title">Latest lessons &amp; updates</h2><p class="lead">Fresh from the learning hub.</p>
-  <div id="posts" data-limit="3"><p class="muted">Loading...</p></div>
-  <p><a href="/lessons">See all lessons &rarr;</a></p>
+
+<section class="block bg-white" id="who"><div class="container">
+  <h2 class="title reveal">Who is this for?</h2><p class="lead reveal">Whether you are building a brand or building skills, there is a place for you here.</p>
+  <div class="grid audience spread" id="audience">
+    <div class="sp"><div class="card float"><div class="icon">&#128188;</div><h3>Businesses &amp; Brands</h3><p>Need a professional website, logo and visual identity that builds trust.</p></div></div>
+    <div class="sp"><div class="card float"><div class="icon">&#127909;</div><h3>Creators &amp; Influencers</h3><p>Want polished videos, thumbnails and graphics that grow an audience.</p></div></div>
+    <div class="sp"><div class="card float"><div class="icon">&#127891;</div><h3>Students &amp; Beginners</h3><p>Ready to learn design, video editing or web skills step by step.</p></div></div>
+    <div class="sp"><div class="card float"><div class="icon">&#127970;</div><h3>Organizations &amp; Events</h3><p>Looking for designs, videos and digital support for programs and campaigns.</p></div></div>
+  </div>
+</div></section>
+
+<section class="block"><div class="container">
+  <h2 class="title reveal">Ready to grow? Recommended reads &amp; lessons</h2><p class="lead reveal">Lessons and guides that inspire, teach and equip you to build real skills.</p>
+  <div class="grid" id="resources"><p class="muted">Loading...</p></div>
+  <p class="mt28 reveal"><a class="btn" href="/lessons">Browse Library &#128218;</a></p>
+</div></section>
+
+<section class="block bg-white hidden" id="testiBlock"><div class="container">
+  <h2 class="title reveal">Read what others say</h2>
+  <div class="grid" id="testimonials"></div>
+</div></section>
+
+<section class="block" id="contact"><div class="container">
+  <div class="contact-band reveal">
+    <div><h2 class="title">Let&rsquo;s work together</h2><p class="lead mb0">Tell me what you need and I will reply as soon as I can.</p>
+      <p class="mt20"><a class="btn" href="/booking">Book a Session</a></p></div>
+    <div class="contact-info">
+      <div id="hoursBlock" class="hidden"><h3>Availability</h3><ul class="hours" id="hoursList"></ul></div>
+      <p class="hidden" id="phoneRow"><strong>Phone / WhatsApp:</strong> <a data-site="phone"></a></p>
+      <p class="hidden" id="emailRow"><strong>Email:</strong> <a data-site="email"></a></p>
+    </div>
+  </div>
 </div></section>
 </main>
 <footer class="site-footer"><div class="container">
   <div class="footer-grid">
-    <div><h4>Eric Azibataram</h4><p>Web designer, graphic designer and video editor. I build things for the web and teach what I learn.</p></div>
-    <div><h4>Get notified of new lessons</h4>
+    <div><h4>Eric Azibataram</h4><p>Web designer, graphic designer and video editor. I build things for the web and teach what I learn.</p>
+      <p class="hidden" id="fPhoneRow">Phone / WhatsApp: <a data-site="phone"></a></p>
+      <p class="hidden" id="fEmailRow">Email: <a data-site="email"></a></p>
+      <div class="hidden" id="fHours"><h4 class="mt14">Availability</h4><ul class="hours" id="fHoursList"></ul></div></div>
+    <div><h4>Explore</h4><ul class="foot-links"><li><a href="/">Home</a></li><li><a href="/about">About</a></li><li><a href="/services">Services</a></li><li><a href="/portfolio">Portfolio</a></li><li><a href="/lessons">Library (Lessons)</a></li><li><a href="/booking">Booking</a></li></ul></div>
+    <div><h4>Information</h4><ul class="foot-links"><li><a href="/privacy">Privacy Policy</a></li><li><a href="/terms">Terms of Service</a></li></ul>
+      <h4 class="mt20">Get notified of new lessons</h4>
       <form id="subscribeForm" novalidate>
         <div class="sub-row"><input type="email" name="email" placeholder="Your email" aria-label="Email" required maxlength="254">
         <button class="btn" type="submit">Subscribe</button></div>
@@ -55,7 +99,7 @@
   </div>
   <div class="copy">&copy; 2026 Eric Azibataram. All rights reserved.</div>
 </div></footer>
-<script src="/js/common.js?v=5"></script>
-<script src="/js/posts.js?v=5"></script>
-<script src="/js/services.js?v=5"></script>
+<script src="/js/common.js?v=6"></script>
+<script src="/js/services.js?v=6"></script>
+<script src="/js/home.js?v=6"></script>
 </body></html>

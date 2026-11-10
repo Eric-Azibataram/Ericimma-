@@ -8,6 +8,7 @@ const { createStore } = require('./lib/store');
 const { createRemote } = require('./lib/remote');
 const { createStorage } = require('./lib/storage');
 const { normalizeImageLink } = require('./lib/images');
+const { cspFor } = require('./lib/csp');
 const { createMailer } = require('./lib/mailer');
 const { ALLOWED_FILES, FILE_ID, extOf, sniffFile, safeFileName } = require('./lib/files');
 const mailer = createMailer();
@@ -53,7 +54,7 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PRO
 
 app.use((req, res, next) => {
   res.set({
-    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    'Content-Security-Policy': cspFor(req.path),
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -174,6 +175,15 @@ app.get('/api/config', (req, res) => res.json({ whatsapp: WHATSAPP, paymentsEnab
 app.get('/api/images', (req, res) => res.json(db.images));
 app.get('/api/services', (req, res) => res.json(db.services));
 app.get('/api/portfolio', (req, res) => res.json(db.portfolio));
+app.get('/api/site', (req, res) => {
+  const st = db.settings || {};
+  res.json({
+    stats: (st.stats || []).filter((x) => x && x.value && x.label),
+    hours: String(st.hours || '').split('\n').map((l) => l.trim()).filter(Boolean),
+    phone: st.phone || '', email: st.email || '', whatsapp: WHATSAPP,
+    testimonials: (db.testimonials || []).map(({ id, quote, name, role }) => ({ id, quote, name, role }))
+  });
+});
 
 /* ---------- Paid lessons (Paystack) ---------- */
 async function paystack(method, pathname, body) {
@@ -316,7 +326,7 @@ app.post('/api/admin/logout', requireAdmin, (req, res) => { sessions.destroy(req
 const httpUrl = (v) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
 /* ---------- Admin API (all behind login + CSRF) ---------- */
 app.get('/api/admin/data', requireAdmin, (req, res) => {
-  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, mail: { enabled: mailer.enabled, to: mailer.owner }, storageWarning: !remote && PROD && !process.env.DATA_DIR });
+  res.json({ posts: db.posts, bookings: db.bookings, subscribers: db.subscribers, services: db.services, portfolio: db.portfolio, orders: db.orders, settings: db.settings, testimonials: db.testimonials, mail: { enabled: mailer.enabled, to: mailer.owner }, storageWarning: !remote && PROD && !process.env.DATA_DIR });
 });
 
 app.post('/api/admin/posts', requireAdmin, async (req, res) => {
@@ -387,6 +397,35 @@ app.patch('/api/admin/services/:id', requireAdmin, (req, res) => {
 app.delete('/api/admin/services/:id', requireAdmin, (req, res) => {
   const n = db.services.length; db.services = db.services.filter((x) => x.id !== req.params.id);
   if (db.services.length === n) return res.status(404).json({ error: 'Not found.' });
+  save(); res.json({ success: true });
+});
+app.put('/api/admin/settings', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const rows = Array.isArray(b.stats) ? b.stats.slice(0, 4) : [];
+  const stats = [];
+  for (const r of rows) {
+    const value = clean(r?.value, 12), label = clean(r?.label, 40);
+    if (!value && !label) continue;
+    if (!/^\d[\d,.]*\s?[A-Za-z+%]{0,4}$/.test(value)) return res.status(400).json({ error: `"${value}" is not a number I can count up. Use something like 15, 10K+ or 1,500.` });
+    if (!label) return res.status(400).json({ error: 'Each number needs a label, for example "Years of experience".' });
+    stats.push({ value: value.replace(/\s/g, ''), label });
+  }
+  const phone = clean(b.phone, 25), email = clean(b.email, 254).toLowerCase(), hours = clean(b.hours, 300);
+  if (phone && !/^\+?[\d\s\-()]{7,25}$/.test(phone)) return res.status(400).json({ error: 'Please enter a valid phone number, or leave it empty.' });
+  if (email && !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address, or leave it empty.' });
+  if (hours.split('\n').length > 6) return res.status(400).json({ error: 'Availability can have at most 6 lines.' });
+  db.settings = { stats, hours, phone, email }; save(); res.json({ success: true });
+});
+app.post('/api/admin/testimonials', requireAdmin, (req, res) => {
+  const quote = clean(req.body?.quote, 600), name = clean(req.body?.name, 60), role = clean(req.body?.role, 60);
+  if (quote.length < 10 || !name) return res.status(400).json({ error: 'Add the testimonial text (10+ characters) and the name of the person.' });
+  if (db.testimonials.length >= 30) return res.status(400).json({ error: 'You already have 30 testimonials. Delete one first.' });
+  db.testimonials.unshift({ id: crypto.randomUUID(), quote, name, role, createdAt: new Date().toISOString() });
+  save(); res.status(201).json({ success: true });
+});
+app.delete('/api/admin/testimonials/:id', requireAdmin, (req, res) => {
+  const n = db.testimonials.length; db.testimonials = db.testimonials.filter((t) => t.id !== req.params.id);
+  if (db.testimonials.length === n) return res.status(404).json({ error: 'Not found.' });
   save(); res.json({ success: true });
 });
 app.post('/api/admin/portfolio', requireAdmin, async (req, res) => {

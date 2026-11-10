@@ -20,6 +20,23 @@
   <div class="mb22 card"><h3>Bookings</h3><div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>Service</th><th>Details</th><th>Status</th><th></th></tr></thead><tbody id="bookBody"></tbody></table></div></div>
   <div class="mb22 card"><h3>Posts</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Title</th><th></th></tr></thead><tbody id="postBody"></tbody></table></div></div>
   <div class="card mb22"><h3>Pictures</h3><p class="muted">Upload a photo from your phone, or paste a link that starts with https://. Tap Save for each spot.</p><div id="picSlots"></div></div>
+  <div class="card mb22"><h3>Home page numbers, contact &amp; availability</h3>
+    <p class="muted">Only add real numbers. Leave a row empty to hide it. If all four are empty, the numbers section does not show on your site.</p>
+    <form id="setForm" class="stack mt12">
+      <div><label>Number 1</label><input id="st0v" maxlength="12" placeholder="e.g. 50+"><input id="st0l" class="mt10" maxlength="40" placeholder="Label, e.g. Projects completed"></div>
+      <div><label>Number 2</label><input id="st1v" maxlength="12" placeholder="e.g. 3"><input id="st1l" class="mt10" maxlength="40" placeholder="Label, e.g. Years of experience"></div>
+      <div><label>Number 3</label><input id="st2v" maxlength="12"><input id="st2l" class="mt10" maxlength="40" placeholder="Label"></div>
+      <div><label>Number 4</label><input id="st3v" maxlength="12"><input id="st3l" class="mt10" maxlength="40" placeholder="Label"></div>
+      <div><label for="sPhone">Phone / WhatsApp to show on the site (optional)</label><input id="sPhone" type="tel" maxlength="25" placeholder="+234..."></div>
+      <div><label for="sEmail">Contact email to show on the site (optional)</label><input id="sEmail" type="email" maxlength="254"></div>
+      <div><label for="sHours">Availability, one line each (optional)</label><textarea id="sHours" rows="3" maxlength="300" placeholder="Monday - Friday: 9:00 - 17:00"></textarea></div>
+      <div><button class="btn" type="submit">Save</button></div></form></div>
+  <div class="card mb22"><h3>Testimonials</h3>
+    <p class="muted">Add real feedback from real people, with their permission. The section appears on your Home page once you add one.</p>
+    <form id="tstForm" class="stack mt12"><div><label for="tQuote">What they said</label><textarea id="tQuote" rows="3" maxlength="600" required></textarea></div>
+      <div><label for="tName">Name</label><input id="tName" maxlength="60" required></div><div><label for="tRole">Role or business (optional)</label><input id="tRole" maxlength="60"></div>
+      <div><button class="btn" type="submit">Add testimonial</button></div></form>
+    <div class="table-wrap mt14"><table><thead><tr><th>Name</th><th>Testimonial</th><th></th></tr></thead><tbody id="tstBody"></tbody></table></div></div>
   <div class="card mb22"><h3>Services &amp; prices</h3>
     <form id="svcForm" class="stack mt12"><div><label for="sName">Name</label><input id="sName" maxlength="80" required></div><div><label for="sDesc">Description</label><input id="sDesc" maxlength="400"></div>
     <div><label for="sPrice">Starting price in &#8358; (0 = "Get a quote")</label><input id="sPrice" type="number" min="0" value="0"></div><div><label for="sUnit">Per (e.g. per project)</label><input id="sUnit" maxlength="40"></div>

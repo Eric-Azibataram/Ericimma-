@@ -90,7 +90,7 @@
     }
     return kids;
   }
-  var mailWarned = false, storeWarned = false;
+  var mailWarned = false, storeWarned = false, settingsFilled = false;
   async function load() {
     try {
       var d = await call('/api/admin/data', 'GET');
@@ -125,6 +125,18 @@
         ob.appendChild(h('tr', {}, [cell(fmtDate(o.createdAt)), cell(o.title), cell(o.email), cell(naira(o.amount)), cell(o.status)]));
       });
       if (!d.orders.length) ob.appendChild(h('tr', {}, [h('td', { colspan: 5, text: 'No lesson sales yet.' })]));
+
+      if (!settingsFilled && d.settings) {
+        settingsFilled = true; var st = d.settings;
+        for (var i = 0; i < 4; i++) { var row = (st.stats || [])[i] || {}; $('#st' + i + 'v').value = row.value || ''; $('#st' + i + 'l').value = row.label || ''; }
+        $('#sPhone').value = st.phone || ''; $('#sEmail').value = st.email || ''; $('#sHours').value = st.hours || '';
+      }
+      var tb = $('#tstBody'); tb.textContent = '';
+      (d.testimonials || []).forEach(function (t) {
+        tb.appendChild(h('tr', {}, [cell(t.name + (t.role ? ' (' + t.role + ')' : '')), cell(t.quote, 'wrap'),
+          h('td', {}, [btn('Delete', 'danger', function () { if (confirm('Delete this testimonial?')) call('/api/admin/testimonials/' + t.id, 'DELETE').then(load).catch(fail); })])]));
+      });
+      if (!(d.testimonials || []).length) tb.appendChild(h('tr', {}, [h('td', { colspan: 3, text: 'No testimonials yet.' })]));
 
       var sv = $('#svcBody'); sv.textContent = '';
       d.services.forEach(function (x) {
@@ -176,6 +188,17 @@
       $('#postForm').reset(); notice(dashMsg, 'ok', 'Published!'); load();
     } catch (err) { fail(err); }
     btn.disabled = false;
+  });
+  $('#setForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var stats = []; for (var i = 0; i < 4; i++) stats.push({ value: $('#st' + i + 'v').value, label: $('#st' + i + 'l').value });
+    call('/api/admin/settings', 'PUT', { stats: stats, phone: $('#sPhone').value, email: $('#sEmail').value, hours: $('#sHours').value })
+      .then(function () { notice(dashMsg, 'ok', 'Saved. Refresh your home page to see it.'); }).catch(fail);
+  });
+  $('#tstForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    call('/api/admin/testimonials', 'POST', { quote: $('#tQuote').value, name: $('#tName').value, role: $('#tRole').value })
+      .then(function () { $('#tstForm').reset(); notice(dashMsg, 'ok', 'Testimonial added.'); load(); }).catch(fail);
   });
   $('#svcForm').addEventListener('submit', function (e) {
     e.preventDefault();
